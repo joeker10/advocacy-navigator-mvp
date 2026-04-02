@@ -1,6 +1,7 @@
 "use client";
 import { useState, useCallback, useEffect } from "react";
-import { getUIPreference, setUIPreference, saveVerifiedDocumentState } from "@/lib/storage";
+import { getUIPreference, setUIPreference } from "@/lib/storage";
+import { cacheVerifiedDocument } from "@/lib/indexeddb";
 
 export default function Home() {
   const [isDragActive, setIsDragActive] = useState(false);
@@ -38,10 +39,32 @@ export default function Home() {
       if (droppedFile.type === "application/pdf") {
         setFile(droppedFile);
         setIsUploading(true);
-        // Simulate extraction & verification
-        await saveVerifiedDocumentState(droppedFile.name, { verified: true });
-        setIsUploading(false);
-        setIsVerified(true);
+        
+        try {
+          const formData = new FormData();
+          formData.append('file', droppedFile);
+
+          const res = await fetch('/api/extract', {
+            method: 'POST',
+            body: formData,
+          });
+          const data = await res.json();
+          if (data.success) {
+            await cacheVerifiedDocument({
+              id: data.documentId,
+              fileName: data.fileName,
+              extractedData: data.extractedData
+            });
+            setIsVerified(true);
+          } else {
+            alert('Analysis failed: ' + (data.error || 'Unknown error'));
+          }
+        } catch (err) {
+          console.error(err);
+          alert('Upload failed due to network error.');
+        } finally {
+          setIsUploading(false);
+        }
       } else {
         alert("Please upload a valid PDF document to adhere to the Zero Trust architecture.");
       }

@@ -1,0 +1,52 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Document {
+  id        String   @id @default(uuid())
+  fileName  String
+  hash      String   // For verified provenance
+  createdAt DateTime @default(now())
+  status    String   // 'VERIFIED', 'PENDING'
+
+  // Extracted fields mapped according to HAR Chapter 60
+  plaafp               String?
+  lreStatement         String?
+  
+  goals                AnnualGoal[]
+  accommodations       Accommodation[]
+  relatedServices      RelatedService[]
+}
+
+model AnnualGoal {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id])
+  target     String
+  benchmarks String?
+}
+
+model Accommodation {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id])
+  details    String
+}
+
+model RelatedService {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id])
+  type       String   // e.g. "Speech Therapy", "OT"
+  frequency  String
+  duration   String
+}
