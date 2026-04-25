@@ -30,6 +30,22 @@ const contacts = [
     phone: "(808) 586-8121",
     email: "dcab@doh.hawaii.gov",
     services: "Communication Access, Policy Oversight"
+  },
+  {
+    org: "Division of Vocational Rehabilitation (DVR)",
+    address: "1010 Richards Street, Suite 217, Honolulu, HI 96813",
+    phone: "(808) 586-9729",
+    email: "Contact via Website",
+    website: "https://humanservices.hawaii.gov/vr/",
+    services: "Transition Services, Employment Prep, Young Adult Support"
+  },
+  {
+    org: "Early Intervention Section (DOH EIS)",
+    address: "1010 Richards Street, Suite 811, Honolulu, HI 96813",
+    phone: "(808) 594-0066",
+    email: "Contact via Website",
+    website: "https://health.hawaii.gov/eis/",
+    services: "Ages 0-3 Support, IFSP Development, Preschool Transitions"
   }
 ];
 

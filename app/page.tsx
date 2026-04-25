@@ -1,23 +1,78 @@
 "use client";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { getUIPreference, setUIPreference } from "@/lib/storage";
-import { cacheVerifiedDocument } from "@/lib/indexeddb";
+import { cacheVerifiedDocument, saveInsight } from "@/lib/indexeddb";
 
 export default function Home() {
   const [isDragActive, setIsDragActive] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [isVerified, setIsVerified] = useState(false);
-  const [highContrast, setHighContrast] = useState(false);
+  const [extractedDocuments, setExtractedDocuments] = useState<any[]>([]);
+  const [darkMode, setDarkMode] = useState(false);
+
+  // Chat Interface State
+  const [messages, setMessages] = useState<{role: 'user'|'model', text: string}[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setHighContrast(getUIPreference("highContrast", false));
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isChatLoading]);
+
+  useEffect(() => {
+    // Determine system theme preference or strict local configuration
+    const isDark = getUIPreference("darkMode", window.matchMedia('(prefers-color-scheme: dark)').matches);
+    setDarkMode(isDark);
+    if (isDark) document.documentElement.style.colorScheme = 'dark';
   }, []);
 
-  const toggleContrast = () => {
-    const newVal = !highContrast;
-    setHighContrast(newVal);
-    setUIPreference("highContrast", newVal);
+  const toggleTheme = () => {
+    const newVal = !darkMode;
+    setDarkMode(newVal);
+    setUIPreference("darkMode", newVal);
+    // Force CSS media query toggle (basic simulation for explicit overriding)
+    document.documentElement.style.colorScheme = newVal ? 'dark' : 'light';
+  };
+
+  const sendChatMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!chatInput.trim() || isChatLoading) return;
+    
+    const userMsg = chatInput.trim();
+    setChatInput("");
+    setMessages(prev => [...prev, {role: 'user', text: userMsg}]);
+    setIsChatLoading(true);
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: userMsg,
+          history: messages,
+          context: extractedDocuments.length > 0 ? extractedDocuments : null // Inject Golden Truth array silently if established
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMessages(prev => [...prev, {role: 'model', text: data.response}]);
+      } else {
+        setMessages(prev => [...prev, {role: 'model', text: `Error: ${data.error}` }]);
+      }
+    } catch(err) {
+      setMessages(prev => [...prev, {role: 'model', text: "A network error occurred connecting to the Advocate."}]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  const handleSaveInsight = async (query: string, response: string) => {
+    try {
+      await saveInsight(query, response);
+      alert("Insight saved securely to your offline vault!");
+    } catch (e) {
+      alert("Failed to save insight offline.");
+    }
   };
 
   const onDragOver = useCallback((e: React.DragEvent) => {
@@ -35,11 +90,16 @@ export default function Home() {
     setIsDragActive(false);
     
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const droppedFile = e.dataTransfer.files[0];
-      if (droppedFile.type === "application/pdf") {
-        setFile(droppedFile);
-        setIsUploading(true);
-        
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type === "application/pdf");
+      if (files.length === 0) {
+        alert("Zero-Trust Policy: Only valid PDF documents can be securely parsed.");
+        return;
+      }
+
+      setIsUploading(true);
+      
+      const newlyExtracted: any[] = [];
+      for (const droppedFile of files) {
         try {
           const formData = new FormData();
           formData.append('file', droppedFile);
@@ -55,106 +115,283 @@ export default function Home() {
               fileName: data.fileName,
               extractedData: data.extractedData
             });
-            setIsVerified(true);
+            newlyExtracted.push({ fileName: data.fileName, ...data.extractedData });
           } else {
-            alert('Analysis failed: ' + (data.error || 'Unknown error'));
+            alert(`Analysis failed for ${droppedFile.name}: ` + (data.error || 'Unknown error'));
           }
         } catch (err) {
           console.error(err);
-          alert('Upload failed due to network error.');
-        } finally {
-          setIsUploading(false);
+          alert(`Upload failed for ${droppedFile.name} due to network error.`);
         }
-      } else {
-        alert("Please upload a valid PDF document to adhere to the Zero Trust architecture.");
       }
+      
+      setExtractedDocuments(prev => [...prev, ...newlyExtracted]);
+      setIsUploading(false);
     }
   }, []);
 
   return (
-    <main className={`container ${highContrast ? 'high-contrast' : ''}`} style={{ padding: "4rem 2rem", minHeight: "100vh" }}>
-      <header style={{ marginBottom: "3rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <h1 style={{ fontSize: "2.5rem", fontWeight: 700, color: "var(--primary)" }}>IEP Upload & Analyze</h1>
-          <p style={{ color: "var(--foreground)", opacity: 0.8, marginTop: "0.5rem" }}>
-            Verified Document-First Architecture. Strict FERPA & HIPAA Compliance.
-          </p>
-        </div>
-        <button 
-          onClick={toggleContrast}
-          style={{
-            padding: "0.5rem 1rem",
-            borderRadius: "8px",
-            border: "1px solid var(--border)",
-            background: "var(--surface)",
-            color: "var(--foreground)",
-            cursor: "pointer",
-            fontWeight: 500,
-            transition: "all var(--transition-normal)"
-          }}
-        >
-          {highContrast ? "Normal View" : "High Contrast"}
-        </button>
-      </header>
-
-      <div 
-        className="glass-panel"
-        style={{
-          padding: "4rem",
-          textAlign: "center",
-          border: isDragActive ? "2px dashed var(--primary)" : "2px dashed var(--border)",
-          backgroundColor: isDragActive ? "var(--primary-light)" : "var(--glass-bg)",
-          transition: "all var(--transition-normal)",
-          cursor: "pointer",
-          position: "relative"
-        }}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
-      >
-        {!file ? (
-          <div>
-            <div style={{ fontSize: "4rem", marginBottom: "1rem" }}>📄</div>
-            <h3 style={{ fontSize: "1.5rem", marginBottom: "0.5rem", fontWeight: 600 }}>
-              Drag & Drop your IEP PDF here
-            </h3>
-            <p style={{ opacity: 0.7, maxWidth: "400px", margin: "0 auto" }}>
-              Secure, Zero-Trust Multi-step OCR & NLP Analysis Pipeline linked directly to the immutable source document.
-            </p>
+    <main style={{ minHeight: "100vh", position: "relative", zIndex: 1, paddingBottom: "4rem" }}>
+      {/* Top Navbar */}
+      <nav style={{ 
+        position: "sticky", top: 0, zIndex: 50,
+        background: "rgba(255, 255, 255, 0.05)",
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
+        borderBottom: "1px solid var(--glass-border)",
+      }}>
+        <div className="container" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "72px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <img 
+              src="/navigator-logo.jpg" 
+              alt="Logo" 
+              style={{ 
+                width: "40px", height: "40px", borderRadius: "50%", 
+                boxShadow: "0 4px 12px var(--primary-glow)", border: "1px solid var(--glass-border)", objectFit: "cover"
+              }} 
+            />
+            <h1 style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.01em" }}>The Special Education Navigator</h1>
           </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <div style={{ fontSize: "4rem", marginBottom: "1rem", animation: isUploading ? "pulse 1.5s infinite" : "none" }}>
-              {isUploading ? "⏳" : "✅"}
-            </div>
-            <h3 style={{ fontSize: "1.5rem", marginBottom: "0.5rem", fontWeight: 600 }}>
-              {isUploading ? "Verifying & Analyzing Document..." : "Document Verified and Extracted"}
-            </h3>
-            <p style={{ color: isVerified ? "var(--success)" : "inherit", fontWeight: 500 }}>
-              {file.name}
-            </p>
-            {isVerified && (
-              <div style={{ marginTop: "2rem", display: "inline-block", textAlign: "left", background: "var(--surface)", padding: "1.5rem", borderRadius: "12px", border: "1px solid var(--success)", boxShadow: "var(--shadow-md)" }}>
-                <h4 style={{ color: "var(--success)", display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "1.1rem" }}>
-                  <span style={{ display: "inline-block", width: "10px", height: "10px", background: "var(--success)", borderRadius: "50%", boxShadow: "0 0 8px var(--success)" }}></span>
-                  Golden Source of Truth Maintained
-                </h4>
-                <ul style={{ marginTop: "1rem", fontSize: "0.95rem", listStyle: "inside", opacity: 0.9 }}>
-                  <li style={{ marginBottom: "0.5rem" }}>Semantic Fields Mapped (HAR Chapter 60)</li>
-                  <li style={{ marginBottom: "0.5rem" }}>Data persists to secure database</li>
-                  <li>Linked to immutable source PDF</li>
-                </ul>
+          <div style={{ display: "flex", gap: "16px" }}>
+            <a href="/saved" style={{
+              padding: "8px 16px", borderRadius: "20px", display: "flex", gap: "8px", alignItems: "center",
+              background: "var(--primary-glow)", border: "1px solid var(--primary)", color: "var(--primary)",
+              cursor: "pointer", fontWeight: 600, fontSize: "0.875rem", textDecoration: "none",
+              boxShadow: "var(--shadow-sm)"
+            }}>⭐ Saved Insights</a>
+            <button 
+              onClick={toggleTheme}
+              style={{
+                padding: "8px 16px", borderRadius: "20px", display: "flex", gap: "8px", alignItems: "center",
+                background: "var(--surface)", border: "1px solid var(--glass-border)", color: "var(--foreground)",
+                cursor: "pointer", fontWeight: 600, fontSize: "0.875rem", transition: "all var(--transition-normal)",
+                boxShadow: "var(--shadow-sm)"
+              }}
+            >
+              {darkMode ? "☀️ Light" : "🌙 Dark"}
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <div className="container" style={{ marginTop: "4rem" }}>
+        
+        {/* Dynamic Hero Section */}
+        <section style={{ textAlign: "center", marginBottom: "4rem", maxWidth: "800px", margin: "0 auto 4rem auto" }} className="animate-slide-up">
+          <div style={{ marginBottom: "2rem", display: "flex", justifyContent: "center" }}>
+            <img 
+              src="/navigator-logo.jpg" 
+              alt="The Special Education Navigator" 
+              style={{ 
+                width: "180px", 
+                height: "180px", 
+                objectFit: "cover",
+                borderRadius: "50%", 
+                boxShadow: "0 0 30px var(--primary-glow)",
+                border: "2px solid var(--glass-border)"
+              }} 
+            />
+          </div>
+          <h2 style={{ fontSize: "3.5rem", fontWeight: 800, lineHeight: 1.1, marginBottom: "1.5rem", background: "linear-gradient(135deg, var(--foreground), var(--primary))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            Seamless IEP Extraction. <br/> Absolute Data Privacy.
+          </h2>
+          <p style={{ fontSize: "1.2rem", color: "var(--foreground)", opacity: 0.7, maxWidth: "600px", margin: "0 auto" }}>
+            Simply drop the student's legal documents. We extract HAR Chapter 60 compliance mappings statelessly using edge AI, locking the results exclusively into your physical device.
+          </p>
+        </section>
+
+        {/* Core Workspace Area */}
+        <div style={{ display: "grid", gridTemplateColumns: extractedDocuments.length > 0 ? "1fr 1fr" : "1fr", gap: "2rem", transition: "all var(--transition-normal)" }}>
+          
+          {/* Animated Glass Dropzone */}
+          <div 
+            className="glass-panel"
+            style={{
+              padding: "4rem 2rem", textAlign: "center",
+              border: isDragActive ? "2px solid var(--primary)" : "1px solid var(--glass-border)",
+              boxShadow: isDragActive ? "0 0 40px var(--primary-glow)" : "var(--shadow-md)",
+              animation: isDragActive ? "pulse-glow 2s infinite" : "none",
+              transition: "all var(--transition-normal)", cursor: "pointer", position: "relative",
+              overflow: "hidden"
+            }}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+          >
+            {/* Visual Indicator Background */}
+            <div style={{
+              position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+              background: "linear-gradient(45deg, transparent, var(--primary-glow), transparent)",
+              opacity: isUploading ? 0.5 : 0, transition: "opacity 0.5s ease",
+              animation: isUploading ? "slide-up 2s infinite alternate" : "none", pointerEvents: "none"
+            }}/>
+
+            {!isUploading && extractedDocuments.length === 0 ? (
+              <div className="animate-slide-up">
+                <div style={{ 
+                  width: "80px", height: "80px", margin: "0 auto 1.5rem auto", borderRadius: "50%",
+                  background: "hsla(220, 20%, 50%, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem"
+                }}>
+                  📄
+                </div>
+                <h3 style={{ fontSize: "1.5rem", marginBottom: "0.5rem", fontWeight: 700 }}>
+                  Drag & Drop Document(s)
+                </h3>
+                <p style={{ opacity: 0.6, fontSize: "0.95rem" }}>
+                  Upload multiple PDFs (IEPs, Assessments) to cross-reference Context.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 10 }}>
+                <div style={{ 
+                  width: "80px", height: "80px", margin: "0 auto 1.5rem auto", borderRadius: "50%",
+                  background: extractedDocuments.length > 0 && !isUploading ? "var(--success-glow)" : "var(--primary-glow)",
+                  border: extractedDocuments.length > 0 && !isUploading ? "2px solid var(--success)" : "2px solid var(--primary)",
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem",
+                  boxShadow: extractedDocuments.length > 0 && !isUploading ? "0 0 20px var(--success-glow)" : "var(--shadow-glow)"
+                }}>
+                  {isUploading ? "⚙️" : "✅"}
+                </div>
+                <h3 style={{ fontSize: "1.5rem", marginBottom: "0.5rem", fontWeight: 700 }}>
+                  {isUploading ? "Securely Tunneling to Gemini..." : "Multi-Document Context Active"}
+                </h3>
+                {extractedDocuments.length > 0 && (
+                  <p style={{ color: "var(--success)", fontWeight: 600, fontSize: "1rem", marginTop: "1rem" }}>
+                    {extractedDocuments.length} Document(s) Secured Offline
+                  </p>
+                )}
+                {extractedDocuments.length > 0 && !isUploading && (
+                  <p style={{ opacity: 0.7, fontSize: "0.85rem", marginTop: "1rem" }}>
+                    Drop more files to add to current Context.
+                  </p>
+                )}
               </div>
             )}
           </div>
-        )}
-      </div>
 
-      <footer style={{ marginTop: "4rem", textAlign: "center", opacity: 0.6, fontSize: "0.875rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
-        <p>Complete Mediation · Immutable Infrastructure · Least Privilege</p>
-        <div>
-          <a href="/help" style={{ color: "var(--primary)", textDecoration: "underline", fontWeight: 600, fontSize: "1rem" }}>View Resource Directory (Help) &rarr;</a>
+          {/* Staggered Results Stack */}
+          {extractedDocuments.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "2rem", maxHeight: "800px", overflowY: "auto", paddingRight: "1rem" }}>
+              {extractedDocuments.map((doc, idx) => (
+                <div key={idx} className="glass-panel animate-slide-up" style={{ padding: "0" }}>
+                  <div style={{ padding: "1.5rem", borderBottom: "1px solid var(--glass-border)", background: "hsla(150, 70%, 40%, 0.05)" }}>
+                    <h3 style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "1.1rem", fontWeight: 700, color: "var(--success)" }}>
+                      <span style={{ display: "inline-block", width: "10px", height: "10px", background: "var(--success)", borderRadius: "50%", boxShadow: "0 0 10px var(--success)" }}></span>
+                      {doc.fileName || "Golden Truth Mapped"}
+                    </h3>
+                  </div>
+                  
+                  <div style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+                    {doc.assessmentName && doc.assessmentName !== "Unknown" && (
+                      <div className="animate-slide-up animate-delay-1" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
+                        <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--primary)", marginBottom: "0.25rem", fontWeight: 700 }}>Assessment Overview</h4>
+                        <p style={{ fontSize: "0.85rem", fontWeight: 500 }}><strong>Name:</strong> {doc.assessmentName} | <strong>Version:</strong> {doc.assessmentVersion}</p>
+                      </div>
+                    )}
+
+                    {doc.behavioralInfo && doc.behavioralInfo !== "Error decoding" && (
+                      <div className="animate-slide-up animate-delay-2" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
+                        <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--secondary)", marginBottom: "0.25rem", fontWeight: 700 }}>Behavioral Info</h4>
+                        <p style={{ fontSize: "0.85rem", fontWeight: 500 }}>{doc.behavioralInfo}</p>
+                      </div>
+                    )}
+
+                    <div className="animate-slide-up animate-delay-3" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
+                      <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--primary)", marginBottom: "0.25rem", fontWeight: 700 }}>Identified Strengths</h4>
+                      <p style={{ fontSize: "0.85rem", fontWeight: 500 }}>{doc.strengths}</p>
+                    </div>
+                    
+                    <div className="animate-slide-up animate-delay-4" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
+                      <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--secondary)", marginBottom: "0.25rem", fontWeight: 700 }}>Core Needs & Deficits</h4>
+                      <p style={{ fontSize: "0.85rem", fontWeight: 500 }}>{doc.needs}</p>
+                    </div>
+
+                    <div className="animate-slide-up animate-delay-5" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
+                      <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--warning)", marginBottom: "0.25rem", fontWeight: 700 }}>Key Takeaways</h4>
+                      <p style={{ fontSize: "0.85rem", fontWeight: 500 }}>{doc.takeaways}</p>
+                    </div>
+
+                    <div className="animate-slide-up animate-delay-6" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
+                      <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--success)", marginBottom: "0.25rem", fontWeight: 700 }}>Accommodations</h4>
+                      <p style={{ fontSize: "0.85rem", fontWeight: 500 }}>{doc.accommodations}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Interactive Advocate Chat Panel */}
+        <section className="glass-panel animate-slide-up animate-delay-2" style={{ marginTop: "4rem", padding: "2rem", display: "flex", flexDirection: "column", minHeight: "400px" }}>
+          <div style={{ paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)", marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--primary)" }}>Ask an Advocate</h3>
+            {extractedDocuments.length > 0 ? (
+              <span style={{ fontSize: "0.85rem", padding: "4px 12px", background: "var(--success-glow)", border: "1px solid var(--success)", color: "var(--success)", borderRadius: "20px", fontWeight: 600 }}>Multi-Doc Context Mode</span>
+            ) : (
+              <span style={{ fontSize: "0.85rem", padding: "4px 12px", background: "var(--glass-bg)", border: "1px solid var(--border)", color: "var(--foreground)", borderRadius: "20px", fontWeight: 600 }}>General Knowledge Mode</span>
+            )}
+          </div>
+          
+          <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem", maxHeight: "400px" }}>
+            {messages.length === 0 ? (
+              <div style={{ textAlign: "center", opacity: 0.5, marginTop: "2rem" }}>
+                <div style={{ fontSize: "2rem", marginBottom: "0.5rem", opacity: 0.8 }}>💬</div>
+                <p>Have questions about Chapter 60 regulations? Ask below!</p>
+              </div>
+            ) : (
+              messages.map((msg, i) => (
+                <div key={i} style={{ alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', background: msg.role === 'user' ? 'var(--primary-glow)' : 'var(--surface)', border: `1px solid ${msg.role === 'user' ? 'var(--primary)' : 'var(--glass-border)'}`, padding: "1rem", borderRadius: "16px", maxWidth: "80%" }}>
+                  <p style={{ fontWeight: 600, fontSize: "0.8rem", color: msg.role === 'user' ? 'var(--primary)' : 'var(--secondary)', marginBottom: "0.25rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>{msg.role === 'user' ? 'You' : 'Advocate'}</p>
+                  <p style={{ fontSize: "0.95rem", whiteSpace: "pre-wrap" }}>{msg.text}</p>
+                  
+                  {msg.role === 'model' && (
+                    <button 
+                      onClick={() => {
+                        const previousQuery = i > 0 && messages[i-1].role === 'user' ? messages[i-1].text : "General Inquiry";
+                        handleSaveInsight(previousQuery, msg.text);
+                      }}
+                      style={{
+                        marginTop: "1rem", padding: "6px 12px", fontSize: "0.75rem", fontWeight: 600, 
+                        background: "var(--background)", color: "var(--foreground)", border: "1px solid var(--border)",
+                        borderRadius: "12px", cursor: "pointer", transition: "all var(--transition-fast)", opacity: 0.8
+                      }}>
+                      ⭐ Save Insight
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+            {isChatLoading && (
+              <div style={{ alignSelf: 'flex-start', padding: "1rem", background: "var(--surface)", border: "1px solid var(--glass-border)", borderRadius: "16px", opacity: 0.7 }}>
+                <p style={{ fontSize: "0.95rem", animation: "pulse-glow 1.5s infinite" }}>Typing...</p>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          <form onSubmit={sendChatMessage} style={{ display: "flex", gap: "1rem" }}>
+            <input 
+              type="text" 
+              value={chatInput} 
+              onChange={e => setChatInput(e.target.value)} 
+              placeholder={extractedDocuments.length > 0 ? "E.g., Does the Assessment contradict the IEP's Needs?" : "E.g., What is an IEP timeline in Hawaii?"}
+              style={{ flex: 1, padding: "1rem 1.5rem", borderRadius: "30px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", fontSize: "1rem", outline: "none", boxShadow: "inset 0 2px 4px rgba(0,0,0,0.05)" }}
+            />
+            <button 
+              type="submit" 
+              disabled={isChatLoading || !chatInput.trim()}
+              style={{ padding: "0 2rem", borderRadius: "30px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: (isChatLoading || !chatInput.trim()) ? "not-allowed" : "pointer", opacity: (isChatLoading || !chatInput.trim()) ? 0.7 : 1, transition: "all var(--transition-fast)", boxShadow: "0 4px 12px var(--primary-glow)" }}
+            >
+              Send
+            </button>
+          </form>
+        </section>
+      </div>
+      
+      {/* Footer Nav */}
+      <footer style={{ position: "absolute", bottom: "1rem", width: "100%", textAlign: "center", opacity: 0.6, fontSize: "0.875rem" }}>
+         <a href="/help" style={{ color: "var(--primary)", textDecoration: "underline", fontWeight: 600 }}>Access Resource Directory (SPIN/LDAH) &rarr;</a>
       </footer>
     </main>
   );
