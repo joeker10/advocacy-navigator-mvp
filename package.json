@@ -7,7 +7,8 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "next lint",
-    "test:api": "node scripts/test-extraction.js"
+    "test:api": "node scripts/test-extraction.js",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@capacitor/core": "^8.3.0",
