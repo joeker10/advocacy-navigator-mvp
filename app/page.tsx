@@ -370,18 +370,18 @@ export default function Home() {
             <div ref={messagesEndRef} />
           </div>
 
-          <form onSubmit={sendChatMessage} style={{ display: "flex", gap: "1rem" }}>
+          <form onSubmit={sendChatMessage} style={{ display: "flex", gap: "0.5rem", width: "100%", flexWrap: "nowrap" }}>
             <input 
               type="text" 
               value={chatInput} 
               onChange={e => setChatInput(e.target.value)} 
               placeholder={extractedDocuments.length > 0 ? "E.g., Does the Assessment contradict the IEP's Needs?" : "E.g., What is an IEP timeline in Hawaii?"}
-              style={{ flex: 1, padding: "1rem 1.5rem", borderRadius: "30px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", fontSize: "1rem", outline: "none", boxShadow: "inset 0 2px 4px rgba(0,0,0,0.05)" }}
+              style={{ flex: 1, minWidth: 0, padding: "0.75rem 1rem", borderRadius: "30px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", fontSize: "1rem", outline: "none", boxShadow: "inset 0 2px 4px rgba(0,0,0,0.05)" }}
             />
             <button 
               type="submit" 
               disabled={isChatLoading || !chatInput.trim()}
-              style={{ padding: "0 2rem", borderRadius: "30px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: (isChatLoading || !chatInput.trim()) ? "not-allowed" : "pointer", opacity: (isChatLoading || !chatInput.trim()) ? 0.7 : 1, transition: "all var(--transition-fast)", boxShadow: "0 4px 12px var(--primary-glow)" }}
+              style={{ flexShrink: 0, padding: "0 1.5rem", borderRadius: "30px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: (isChatLoading || !chatInput.trim()) ? "not-allowed" : "pointer", opacity: (isChatLoading || !chatInput.trim()) ? 0.7 : 1, transition: "all var(--transition-fast)", boxShadow: "0 4px 12px var(--primary-glow)" }}
             >
               Send
             </button>
