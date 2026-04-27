@@ -16,7 +16,7 @@
 ## Phase 9 Completed: Web MVP & Deployment
 * **Multi-Document Ingestion:** Expanded the extraction engine and IndexedDB schema to process arrays of multiple files simultaneously, giving Gemini the ability to cross-reference multiple PDFs.
 * **Offline Insight Vault:** Implemented a new `/saved` route that serves directly from an offline IndexedDB ledger, allowing parents to permanently capture AI insights via a "⭐ Save Insight" action.
-* **Rebranding & UI Polish:** Changed application nomenclature to "The Special Education Navigator" and embedded the new compass logo into the hero block and navbars.
+* **Rebranding & UI Polish:** Changed application nomenclature to "The Special Education Navigator", embedded the new compass logo into the hero block/navbars, and applied flexbox adjustments to ensure the chat input form remains responsive on mobile portrait screens.
 * **Vercel Cloud Deployment Strategy:** Committed the MVP branch to Git and configured a custom `postinstall` script (`prisma generate`) to guarantee stability during the Vercel edge deployment pipeline.
 
 ## Next Steps for Mobile App (Upcoming)
