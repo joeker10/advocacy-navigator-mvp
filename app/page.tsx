@@ -1,7 +1,7 @@
 "use client";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { getUIPreference, setUIPreference } from "@/lib/storage";
-import { cacheVerifiedDocument, saveInsight } from "@/lib/indexeddb";
+import { cacheVerifiedDocument, saveInsight, saveDocumentEmbedding, getDocumentEmbeddings, cosineSimilarity } from "@/lib/indexeddb";
 
 export default function Home() {
   const [isDragActive, setIsDragActive] = useState(false);
@@ -23,15 +23,17 @@ export default function Home() {
     // Determine system theme preference or strict local configuration
     const isDark = getUIPreference("darkMode", window.matchMedia('(prefers-color-scheme: dark)').matches);
     setDarkMode(isDark);
-    if (isDark) document.documentElement.style.colorScheme = 'dark';
+    document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
   }, []);
 
   const toggleTheme = () => {
     const newVal = !darkMode;
     setDarkMode(newVal);
     setUIPreference("darkMode", newVal);
-    // Force CSS media query toggle (basic simulation for explicit overriding)
+    // Force explicit CSS override via data attribute
     document.documentElement.style.colorScheme = newVal ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', newVal ? 'dark' : 'light');
   };
 
   const sendChatMessage = async (e?: React.FormEvent) => {
@@ -44,13 +46,40 @@ export default function Home() {
     setIsChatLoading(true);
 
     try {
+      // 1. Generate 768-D embedding for the user's query
+      const embedRes = await fetch('/api/embed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: userMsg })
+      });
+      const embedData = await embedRes.json();
+      
+      let ragChunks: string[] = [];
+      if (embedData.success && embedData.vector) {
+        // 2. Perform local client-side Vector Similarity Search against IndexedDB
+        const allEmbeddings = await getDocumentEmbeddings();
+        const scoredChunks = allEmbeddings.map(docEmb => ({
+          chunk: docEmb.text_chunk,
+          score: cosineSimilarity(embedData.vector, docEmb.vector)
+        }));
+        
+        // 3. Filter by semantic threshold and take top K chunks
+        ragChunks = scoredChunks
+          .filter(c => c.score > 0.5) // Minimum confidence gating
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 3)
+          .map(c => c.chunk);
+      }
+
+      // 4. Send aggregated multimodal evidence set to the synthesizer
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: userMsg,
           history: messages,
-          context: extractedDocuments.length > 0 ? extractedDocuments : null // Inject Golden Truth array silently if established
+          context: extractedDocuments.length > 0 ? extractedDocuments : null, // Legacy Golden Truth array
+          rag_chunks: ragChunks // Newly retrieved precise Multimodal evidence
         })
       });
       const data = await res.json();
@@ -60,6 +89,7 @@ export default function Home() {
         setMessages(prev => [...prev, {role: 'model', text: `Error: ${data.error}` }]);
       }
     } catch(err) {
+      console.error(err);
       setMessages(prev => [...prev, {role: 'model', text: "A network error occurred connecting to the Advocate."}]);
     } finally {
       setIsChatLoading(false);
@@ -115,6 +145,9 @@ export default function Home() {
               fileName: data.fileName,
               extractedData: data.extractedData
             });
+            if (data.vector && data.vector.length > 0) {
+              await saveDocumentEmbedding(data.documentId, data.vector, data.text_chunk, 1);
+            }
             newlyExtracted.push({ fileName: data.fileName, ...data.extractedData });
           } else {
             alert(`Analysis failed for ${droppedFile.name}: ` + (data.error || 'Unknown error'));
