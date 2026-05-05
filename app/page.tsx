@@ -344,9 +344,11 @@ export default function Home() {
         {/* Core Workspace Area */}
         <div style={{ display: "grid", gridTemplateColumns: extractedDocuments.length > 0 ? "1fr 1fr" : "1fr", gap: "2rem", transition: "all var(--transition-normal)" }}>
           
-          {/* Animated Glass Dropzone */}
-          <div 
-            className="glass-panel"
+          {/* Input Controls Column */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+            {/* Animated Glass Dropzone */}
+            <div 
+              className="glass-panel"
             style={{
               padding: "4rem 2rem", textAlign: "center",
               border: isDragActive ? "2px solid var(--primary)" : "1px solid var(--glass-border)",
@@ -461,6 +463,7 @@ export default function Home() {
                 <span><strong>Legal Note:</strong> While Hawaii is a one-party consent state, best advocacy practices strongly recommend formally informing the school administration prior to recording any IEP or 504 meeting.</span>
               </p>
             </div>
+          </div>
           </div>
 
           {/* Staggered Results Stack */}
