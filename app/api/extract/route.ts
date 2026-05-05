@@ -7,12 +7,13 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     if (!file) {
-      return NextResponse.json({ error: 'No PDF file uploaded' }, { status: 400 });
+      return NextResponse.json({ error: 'No media file uploaded' }, { status: 400 });
     }
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const base64Pdf = buffer.toString('base64');
+    const base64Data = buffer.toString('base64');
+    const mimeType = file.type;
 
     // Initialize Generative AI 
     if (!process.env.GEMINI_API_KEY) {
@@ -43,19 +44,29 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    const promptText = `
+    let promptText = `
       You are an expert Special Education Advocate operating under Hawaii HAR Chapter 60 regulations.
       Your task is to analyze the attached IEP or Educational PDF document and strictly extract the requested fields.
       Pay special attention to tabular data, matrices, and visual checkboxes.
       Ensure information is concise and exactly maps to the student's legal rights.
     `;
 
+    if (mimeType.startsWith('image/')) {
+      promptText = `
+        You are an expert Special Education Advocate. Your task is to analyze the attached image, performing strong OCR to read handwritten notes, behavioral logs, or IEP matrices. Strictly extract the requested fields. Ensure information is concise.
+      `;
+    } else if (mimeType.startsWith('audio/')) {
+      promptText = `
+        You are an expert Special Education Advocate. Your task is to analyze the attached audio recording of an IEP or 504 meeting. Transcribe the relevant conversation and extract the requested fields based on the verbal commitments made by school staff.
+      `;
+    }
+
     const aiResult = await model.generateContent([
       promptText,
       {
         inlineData: {
-          data: base64Pdf,
-          mimeType: "application/pdf"
+          data: base64Data,
+          mimeType: mimeType
         }
       }
     ]);

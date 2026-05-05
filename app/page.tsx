@@ -15,6 +15,12 @@ export default function Home() {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Media Capture State
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isChatLoading]);
@@ -115,53 +121,94 @@ export default function Home() {
     setIsDragActive(false);
   }, []);
 
-  const onDrop = useCallback(async (e: React.DragEvent) => {
+  const handleFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    setIsUploading(true);
+    
+    const newlyExtracted: any[] = [];
+    for (const droppedFile of files) {
+      try {
+        const formData = new FormData();
+        formData.append('file', droppedFile);
+
+        const res = await fetch('/api/extract', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+        if (data.success) {
+          await cacheVerifiedDocument({
+            id: data.documentId,
+            fileName: data.fileName,
+            extractedData: data.extractedData
+          });
+          if (data.vector && data.vector.length > 0) {
+            await saveDocumentEmbedding(data.documentId, data.vector, data.text_chunk, 1);
+          }
+          newlyExtracted.push({ fileName: data.fileName, ...data.extractedData });
+        } else {
+          alert(`Analysis failed for ${droppedFile.name}: ` + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        console.error(err);
+        alert(`Upload failed for ${droppedFile.name} due to network error.`);
+      }
+    }
+    
+    setExtractedDocuments(prev => [...prev, ...newlyExtracted]);
+    setIsUploading(false);
+  };
+
+  const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragActive(false);
     
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const files = Array.from(e.dataTransfer.files).filter(f => f.type === "application/pdf");
-      if (files.length === 0) {
-        alert("Zero-Trust Policy: Only valid PDF documents can be securely parsed.");
-        return;
-      }
-
-      setIsUploading(true);
-      
-      const newlyExtracted: any[] = [];
-      for (const droppedFile of files) {
-        try {
-          const formData = new FormData();
-          formData.append('file', droppedFile);
-
-          const res = await fetch('/api/extract', {
-            method: 'POST',
-            body: formData,
-          });
-          const data = await res.json();
-          if (data.success) {
-            await cacheVerifiedDocument({
-              id: data.documentId,
-              fileName: data.fileName,
-              extractedData: data.extractedData
-            });
-            if (data.vector && data.vector.length > 0) {
-              await saveDocumentEmbedding(data.documentId, data.vector, data.text_chunk, 1);
-            }
-            newlyExtracted.push({ fileName: data.fileName, ...data.extractedData });
-          } else {
-            alert(`Analysis failed for ${droppedFile.name}: ` + (data.error || 'Unknown error'));
-          }
-        } catch (err) {
-          console.error(err);
-          alert(`Upload failed for ${droppedFile.name} due to network error.`);
-        }
-      }
-      
-      setExtractedDocuments(prev => [...prev, ...newlyExtracted]);
-      setIsUploading(false);
+      const files = Array.from(e.dataTransfer.files);
+      handleFiles(files);
     }
   }, []);
+
+  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFiles(Array.from(e.target.files));
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioFile = new File([audioBlob], `IEP_Meeting_Recording_${new Date().toISOString()}.webm`, { type: 'audio/webm' });
+        handleFiles([audioFile]);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Failed to start audio recording", err);
+      alert("Microphone access denied or unavailable.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    }
+  };
 
   return (
     <main style={{ minHeight: "100vh", position: "relative", zIndex: 1, paddingBottom: "4rem" }}>
@@ -300,6 +347,59 @@ export default function Home() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* Media Capture Controls */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
+            <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
+              <input 
+                type="file" 
+                accept="image/*" 
+                capture="environment" 
+                ref={cameraInputRef} 
+                style={{ display: "none" }} 
+                onChange={handleCameraCapture} 
+              />
+              <button 
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={isUploading}
+                style={{
+                  flex: 1, padding: "1rem", borderRadius: "16px",
+                  background: "var(--surface)", border: "1px solid var(--border)",
+                  color: "var(--foreground)", fontSize: "1rem", fontWeight: 600,
+                  cursor: isUploading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                  transition: "all 0.2s"
+                }}
+              >
+                📸 Take Photo (OCR)
+              </button>
+
+              <button 
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isUploading && !isRecording}
+                style={{
+                  flex: 1, padding: "1rem", borderRadius: "16px",
+                  background: isRecording ? "hsl(0, 80%, 50%)" : "var(--surface)", 
+                  border: isRecording ? "none" : "1px solid var(--border)",
+                  color: isRecording ? "white" : "var(--foreground)", 
+                  fontSize: "1rem", fontWeight: 600,
+                  cursor: isUploading && !isRecording ? "not-allowed" : "pointer", 
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                  animation: isRecording ? "pulse-glow 1.5s infinite" : "none",
+                  boxShadow: isRecording ? "0 0 20px hsla(0, 80%, 50%, 0.5)" : "none",
+                  transition: "all 0.2s"
+                }}
+              >
+                {isRecording ? "⏹ Stop Recording" : "🎙️ Record Meeting"}
+              </button>
+            </div>
+            
+            <div style={{ padding: "1rem", borderRadius: "12px", background: "hsla(0, 0%, 50%, 0.1)", border: "1px solid var(--border)" }}>
+              <p style={{ fontSize: "0.8rem", opacity: 0.8, display: "flex", alignItems: "flex-start", gap: "0.5rem" }}>
+                <span style={{ fontSize: "1.2rem" }}>⚠️</span>
+                <span><strong>Legal Note:</strong> While Hawaii is a one-party consent state, best advocacy practices strongly recommend formally informing the school administration prior to recording any IEP or 504 meeting.</span>
+              </p>
+            </div>
           </div>
 
           {/* Staggered Results Stack */}
