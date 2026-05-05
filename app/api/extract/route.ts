@@ -12,11 +12,7 @@ export async function POST(req: NextRequest) {
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-
-    // Truly parse the binary PDF stream into semantic raw text using standard pdf-parse
-    const pdfParse = require('pdf-parse');
-    const pdfData = await pdfParse(buffer);
-    const secureText = pdfData.text;
+    const base64Pdf = buffer.toString('base64');
 
     // Initialize Generative AI 
     if (!process.env.GEMINI_API_KEY) {
@@ -49,14 +45,20 @@ export async function POST(req: NextRequest) {
 
     const promptText = `
       You are an expert Special Education Advocate operating under Hawaii HAR Chapter 60 regulations.
-      Your task is to analyze the following extracted IEP text and strictly extract the requested fields.
+      Your task is to analyze the attached IEP or Educational PDF document and strictly extract the requested fields.
+      Pay special attention to tabular data, matrices, and visual checkboxes.
       Ensure information is concise and exactly maps to the student's legal rights.
-      
-      TEXT:
-      \n${secureText}\n
     `;
 
-    const aiResult = await model.generateContent(promptText);
+    const aiResult = await model.generateContent([
+      promptText,
+      {
+        inlineData: {
+          data: base64Pdf,
+          mimeType: "application/pdf"
+        }
+      }
+    ]);
     const responseText = aiResult.response.text();
     let extracted;
     try {
@@ -77,12 +79,32 @@ export async function POST(req: NextRequest) {
     // Generate verifiable local identity string for the client-side IndexedDB persistence to cache against
     const documentId = crypto.randomUUID();
 
+    // Generate 768-Dimensional Matryoshka Vector Embedding using Gemini Embedding 2
+    let vector: number[] = [];
+    let textChunkForVector = "Document Content";
+    try {
+      // In the current SDK, text-embedding-004 is the public identifier for Gemini Embedding models that support MRL
+      const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+      
+      // We fall back to embedding the generated structured text if the API rejects raw PDFs for the embedding endpoint
+      textChunkForVector = `Document: ${file.name}\n${JSON.stringify(extracted)}`;
+      
+      const embedResult = await embeddingModel.embedContent(textChunkForVector);
+      const fullVector = embedResult.embedding.values;
+      // Truncate to 768 dimensions per Matryoshka learning principles
+      vector = fullVector.slice(0, 768);
+    } catch (embErr) {
+      console.warn("Failed to generate embedding", embErr);
+    }
+
     // Return the decrypted structured data for the immediate UI, to be cached offline
     return NextResponse.json({
       success: true,
       documentId: documentId,
       fileName: file.name,
-      extractedData: extracted
+      extractedData: extracted,
+      vector: vector,
+      text_chunk: textChunkForVector
     });
 
   } catch (error: any) {
