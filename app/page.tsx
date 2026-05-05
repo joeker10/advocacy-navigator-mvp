@@ -121,6 +121,56 @@ export default function Home() {
     setIsDragActive(false);
   }, []);
 
+  // Client-side image compression to bypass Next.js 4MB / Vercel 4.5MB payload limits
+  const compressImage = async (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        
+        // Target max dimension for OCR while staying under 2-3MB
+        const MAX_DIMENSION = 2048;
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > height && width > MAX_DIMENSION) {
+          height = Math.round((height * MAX_DIMENSION) / width);
+          width = MAX_DIMENSION;
+        } else if (height > MAX_DIMENSION) {
+          width = Math.round((width * MAX_DIMENSION) / height);
+          height = MAX_DIMENSION;
+        }
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(file); // fallback
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Compress to JPEG with 0.8 quality
+        canvas.toBlob((blob) => {
+          if (!blob) return resolve(file);
+          const compressedFile = new File([blob], file.name, {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
+          resolve(compressedFile);
+        }, 'image/jpeg', 0.8);
+      };
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(file); // fallback to original on error
+      };
+      
+      img.src = url;
+    });
+  };
+
   const handleFiles = async (files: File[]) => {
     if (files.length === 0) return;
     setIsUploading(true);
@@ -128,13 +178,24 @@ export default function Home() {
     const newlyExtracted: any[] = [];
     for (const droppedFile of files) {
       try {
+        let processedFile = droppedFile;
+        // Compress high-res camera photos to prevent 413 Payload Too Large network errors
+        if (droppedFile.type.startsWith('image/')) {
+          processedFile = await compressImage(droppedFile);
+        }
+
         const formData = new FormData();
-        formData.append('file', droppedFile);
+        formData.append('file', processedFile);
 
         const res = await fetch('/api/extract', {
           method: 'POST',
           body: formData,
         });
+        
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        
         const data = await res.json();
         if (data.success) {
           await cacheVerifiedDocument({
