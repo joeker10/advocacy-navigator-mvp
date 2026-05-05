@@ -38,4 +38,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Required for OCR document scanning -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Required for Meeting Audio Transcription -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 </manifest>

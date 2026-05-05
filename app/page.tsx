@@ -22,6 +22,8 @@ export default function Home() {
   const audioChunksRef = useRef<BlobPart[]>([]);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isChatLoading]);
@@ -53,8 +55,8 @@ export default function Home() {
     setIsChatLoading(true);
 
     try {
-      // 1. Generate 768-D embedding for the user's query
-      const embedRes = await fetch('/api/embed', {
+      // 2. Vectorize the user's query against the new standalone embedding endpoint
+      const embedRes = await fetch(`${API_URL}/api/embed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: userMsg })
@@ -78,8 +80,8 @@ export default function Home() {
           .map(c => c.chunk);
       }
 
-      // 4. Send aggregated multimodal evidence set to the synthesizer
-      const res = await fetch('/api/chat', {
+      // 4. Send query + vectors to the primary Chat Synthesis API
+      const res = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -208,7 +210,7 @@ export default function Home() {
         formData.append('files', file);
       });
 
-      const res = await fetch('/api/extract', {
+      const res = await fetch(`${API_URL}/api/extract`, {
         method: 'POST',
         body: formData,
       });

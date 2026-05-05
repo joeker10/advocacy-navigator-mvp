@@ -47,5 +47,9 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>This app requires camera access to scan and OCR educational documents and IEP matrices.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app requires microphone access to record and transcribe IEP meetings.</string>
 </dict>
 </plist>
