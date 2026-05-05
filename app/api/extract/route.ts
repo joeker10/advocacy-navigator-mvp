@@ -5,15 +5,25 @@ import { encryptPHI, pseudonymize } from '@/lib/security';
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const file = formData.get('file') as File | null;
-    if (!file) {
-      return NextResponse.json({ error: 'No media file uploaded' }, { status: 400 });
+    const files = formData.getAll('files') as File[];
+    if (!files || files.length === 0) {
+      return NextResponse.json({ error: 'No media files uploaded' }, { status: 400 });
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64Data = buffer.toString('base64');
-    const mimeType = file.type;
+    const inlineDataParts: any[] = [];
+    let primaryMimeType = files[0].type;
+    let combinedFileName = files.length > 1 ? `Batch_${files.length}_Documents` : files[0].name;
+
+    for (const file of files) {
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      inlineDataParts.push({
+        inlineData: {
+          data: buffer.toString('base64'),
+          mimeType: file.type
+        }
+      });
+    }
 
     // Initialize Generative AI 
     if (!process.env.GEMINI_API_KEY) {
@@ -46,16 +56,18 @@ export async function POST(req: NextRequest) {
 
     let promptText = `
       You are an expert Special Education Advocate operating under Hawaii HAR Chapter 60 regulations.
-      Your task is to analyze the attached IEP or Educational PDF document and strictly extract the requested fields.
+      Your task is to analyze the attached IEP or Educational PDF document(s) and strictly extract the requested fields.
+      If there are multiple pages or documents attached, synthesize them together into a single unified extraction.
       Pay special attention to tabular data, matrices, and visual checkboxes.
       Ensure information is concise and exactly maps to the student's legal rights.
     `;
 
-    if (mimeType.startsWith('image/')) {
+    if (primaryMimeType.startsWith('image/')) {
       promptText = `
-        You are an expert Special Education Advocate. Your task is to analyze the attached image, performing strong OCR to read handwritten notes, behavioral logs, or IEP matrices. Strictly extract the requested fields. Ensure information is concise.
+        You are an expert Special Education Advocate. Your task is to analyze the attached image(s), performing strong OCR to read handwritten notes, behavioral logs, or IEP matrices. 
+        If multiple images are attached, they represent sequential pages of a single document. Synthesize them into a single extraction. Strictly extract the requested fields. Ensure information is concise.
       `;
-    } else if (mimeType.startsWith('audio/')) {
+    } else if (primaryMimeType.startsWith('audio/')) {
       promptText = `
         You are an expert Special Education Advocate. Your task is to analyze the attached audio recording of an IEP or 504 meeting. Transcribe the relevant conversation and extract the requested fields based on the verbal commitments made by school staff.
       `;
@@ -63,12 +75,7 @@ export async function POST(req: NextRequest) {
 
     const aiResult = await model.generateContent([
       promptText,
-      {
-        inlineData: {
-          data: base64Data,
-          mimeType: mimeType
-        }
-      }
+      ...inlineDataParts
     ]);
     const responseText = aiResult.response.text();
     let extracted;
@@ -97,8 +104,8 @@ export async function POST(req: NextRequest) {
       // In the current SDK, text-embedding-004 is the public identifier for Gemini Embedding models that support MRL
       const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
       
-      // We fall back to embedding the generated structured text if the API rejects raw PDFs for the embedding endpoint
-      textChunkForVector = `Document: ${file.name}\n${JSON.stringify(extracted)}`;
+      // We fall back to embedding the generated structured text
+      textChunkForVector = `Document: ${combinedFileName}\n${JSON.stringify(extracted)}`;
       
       const embedResult = await embeddingModel.embedContent(textChunkForVector);
       const fullVector = embedResult.embedding.values;
@@ -112,7 +119,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       documentId: documentId,
-      fileName: file.name,
+      fileName: combinedFileName,
       extractedData: extracted,
       vector: vector,
       text_chunk: textChunkForVector

@@ -15,7 +15,8 @@ export default function Home() {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Media Capture State
+  // Media Capture & Staging State
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
@@ -173,51 +174,86 @@ export default function Home() {
 
   const handleFiles = async (files: File[]) => {
     if (files.length === 0) return;
-    setIsUploading(true);
     
-    const newlyExtracted: any[] = [];
+    // Validate: Block mixing audio and visual media
+    const incomingHasAudio = files.some(f => f.type.startsWith('audio/'));
+    const incomingHasVisual = files.some(f => f.type.startsWith('image/') || f.type === 'application/pdf');
+    const existingHasAudio = stagedFiles.some(f => f.type.startsWith('audio/'));
+    const existingHasVisual = stagedFiles.some(f => f.type.startsWith('image/') || f.type === 'application/pdf');
+
+    if ((incomingHasAudio && existingHasVisual) || (incomingHasVisual && existingHasAudio) || (incomingHasAudio && incomingHasVisual)) {
+      alert("Validation Error: Please do not mix audio recordings with document photos/PDFs. Process them in separate batches.");
+      return;
+    }
+
+    const processed: File[] = [];
     for (const droppedFile of files) {
-      try {
-        let processedFile = droppedFile;
-        // Compress high-res camera photos to prevent 413 Payload Too Large network errors
-        if (droppedFile.type.startsWith('image/')) {
-          processedFile = await compressImage(droppedFile);
-        }
-
-        const formData = new FormData();
-        formData.append('file', processedFile);
-
-        const res = await fetch('/api/extract', {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-        
-        const data = await res.json();
-        if (data.success) {
-          await cacheVerifiedDocument({
-            id: data.documentId,
-            fileName: data.fileName,
-            extractedData: data.extractedData
-          });
-          if (data.vector && data.vector.length > 0) {
-            await saveDocumentEmbedding(data.documentId, data.vector, data.text_chunk, 1);
-          }
-          newlyExtracted.push({ fileName: data.fileName, ...data.extractedData });
-        } else {
-          alert(`Analysis failed for ${droppedFile.name}: ` + (data.error || 'Unknown error'));
-        }
-      } catch (err) {
-        console.error(err);
-        alert(`Upload failed for ${droppedFile.name} due to network error.`);
+      let processedFile = droppedFile;
+      if (droppedFile.type.startsWith('image/')) {
+        processedFile = await compressImage(droppedFile);
       }
+      processed.push(processedFile);
     }
     
-    setExtractedDocuments(prev => [...prev, ...newlyExtracted]);
+    setStagedFiles(prev => [...prev, ...processed]);
+  };
+
+  const processStagedBatch = async () => {
+    if (stagedFiles.length === 0) return;
+    setIsUploading(true);
+    
+    try {
+      const formData = new FormData();
+      stagedFiles.forEach(file => {
+        formData.append('files', file);
+      });
+
+      const res = await fetch('/api/extract', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      if (data.success) {
+        await cacheVerifiedDocument({
+          id: data.documentId,
+          fileName: data.fileName,
+          extractedData: data.extractedData
+        });
+        if (data.vector && data.vector.length > 0) {
+          await saveDocumentEmbedding(data.documentId, data.vector, data.text_chunk, 1);
+        }
+        setExtractedDocuments(prev => [...prev, { fileName: data.fileName, ...data.extractedData }]);
+        setStagedFiles([]); // Clear queue on success
+      } else {
+        alert(`Batch Analysis failed: ` + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error(err);
+      alert(`Upload failed due to network error.`);
+    }
+    
     setIsUploading(false);
+  };
+
+  const moveStagedFile = (index: number, direction: -1 | 1) => {
+    setStagedFiles(prev => {
+      const copy = [...prev];
+      if (index + direction >= 0 && index + direction < copy.length) {
+        const temp = copy[index];
+        copy[index] = copy[index + direction];
+        copy[index + direction] = temp;
+      }
+      return copy;
+    });
+  };
+
+  const removeStagedFile = (index: number) => {
+    setStagedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -434,7 +470,7 @@ export default function Home() {
                   transition: "all 0.2s"
                 }}
               >
-                📸 Take Photo (OCR)
+                📸 Take Photo
               </button>
 
               <button 
@@ -453,7 +489,7 @@ export default function Home() {
                   transition: "all 0.2s"
                 }}
               >
-                {isRecording ? "⏹ Stop Recording" : "🎙️ Record Meeting"}
+                {isRecording ? "⏹ Stop Recording" : "🎙️ Record Audio"}
               </button>
             </div>
             
@@ -463,6 +499,37 @@ export default function Home() {
                 <span><strong>Legal Note:</strong> While Hawaii is a one-party consent state, best advocacy practices strongly recommend formally informing the school administration prior to recording any IEP or 504 meeting.</span>
               </p>
             </div>
+            
+            {/* Staging Queue */}
+            {stagedFiles.length > 0 && (
+              <div className="glass-panel animate-slide-up" style={{ padding: "1.5rem", marginTop: "1rem" }}>
+                <h3 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ background: "var(--primary-glow)", color: "var(--primary)", padding: "0.2rem 0.6rem", borderRadius: "12px", fontSize: "0.9rem" }}>{stagedFiles.length}</span>
+                  Documents Staged for Batch Processing
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.5rem" }}>
+                  {stagedFiles.map((file, idx) => (
+                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem 1rem", background: "var(--background)", border: "1px solid var(--glass-border)", borderRadius: "8px", boxShadow: "var(--shadow-sm)" }}>
+                      <span style={{ fontSize: "0.95rem", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                        <span style={{ opacity: 0.5, marginRight: "0.5rem" }}>{idx + 1}.</span> {file.name}
+                      </span>
+                      <div style={{ display: "flex", gap: "0.25rem" }}>
+                        <button onClick={() => moveStagedFile(idx, -1)} disabled={idx === 0 || isUploading} style={{ padding: "0.25rem", borderRadius: "4px", background: "var(--surface)", border: "1px solid var(--border)", cursor: idx === 0 || isUploading ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.3 : 1 }}>⬆️</button>
+                        <button onClick={() => moveStagedFile(idx, 1)} disabled={idx === stagedFiles.length - 1 || isUploading} style={{ padding: "0.25rem", borderRadius: "4px", background: "var(--surface)", border: "1px solid var(--border)", cursor: idx === stagedFiles.length - 1 || isUploading ? "not-allowed" : "pointer", opacity: idx === stagedFiles.length - 1 ? 0.3 : 1 }}>⬇️</button>
+                        <button onClick={() => removeStagedFile(idx)} disabled={isUploading} style={{ padding: "0.25rem", borderRadius: "4px", background: "hsla(0, 80%, 50%, 0.1)", border: "1px solid hsla(0, 80%, 50%, 0.3)", cursor: isUploading ? "not-allowed" : "pointer" }}>❌</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button 
+                  onClick={processStagedBatch}
+                  disabled={isUploading}
+                  style={{ width: "100%", padding: "1rem", borderRadius: "12px", background: "var(--primary)", border: "none", color: "var(--background)", fontSize: "1.1rem", fontWeight: 700, cursor: isUploading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", boxShadow: "0 4px 12px var(--primary-glow)", transition: "all 0.2s" }}
+                >
+                  {isUploading ? "⚙️ Processing Batch..." : "✨ Extract Context from Batch"}
+                </button>
+              </div>
+            )}
           </div>
           </div>
 
