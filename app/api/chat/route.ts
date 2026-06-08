@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import prisma from '@/lib/prisma';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { retryWithBackoff } from '@/lib/gemini';
 
 export async function POST(req: NextRequest) {
   try {
@@ -111,8 +112,27 @@ Scope of Practice: You are an analytical tool, not a licensed attorney. Do not i
       }
     });
 
-    // Execute Stateless Query
-    const result = await chat.sendMessage(query);
+    // Execute Stateless Query with retry and fallback to gemini-1.5-flash under high demand
+    const result = await retryWithBackoff(
+      () => chat.sendMessage(query),
+      3,
+      1000,
+      async () => {
+        console.warn("[Gemini API Fallback] Initializing gemini-1.5-flash chat session...");
+        const fallbackModel = genAI.getGenerativeModel({
+          model: "gemini-1.5-flash",
+          systemInstruction: systemPrompt
+        });
+        const fallbackChat = fallbackModel.startChat({
+          history: formattedHistory,
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 4096,
+          }
+        });
+        return await fallbackChat.sendMessage(query);
+      }
+    );
     const responseText = result.response.text();
 
     return NextResponse.json({

@@ -3,6 +3,7 @@ import { GoogleGenerativeAI, Schema, SchemaType } from '@google/generative-ai';
 import { encryptPHI, pseudonymize } from '@/lib/security';
 import prisma from '@/lib/prisma';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { retryWithBackoff } from '@/lib/gemini';
 
 export async function POST(req: NextRequest) {
   try {
@@ -102,10 +103,23 @@ export async function POST(req: NextRequest) {
       `;
     }
 
-    const aiResult = await model.generateContent([
-      promptText,
-      ...inlineDataParts
-    ]);
+    const aiResult = await retryWithBackoff(
+      () => model.generateContent([promptText, ...inlineDataParts]),
+      3,
+      1000,
+      async () => {
+        console.warn("[Gemini API Fallback] Initializing gemini-1.5-flash for document extraction...");
+        const fallbackModel = genAI.getGenerativeModel({
+          model: "gemini-1.5-flash",
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: extractSchema,
+            temperature: 0.2,
+          }
+        });
+        return await fallbackModel.generateContent([promptText, ...inlineDataParts]);
+      }
+    );
     const responseText = aiResult.response.text();
     let extracted;
     try {
