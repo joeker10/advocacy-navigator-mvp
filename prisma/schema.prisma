@@ -50,3 +50,20 @@ model RelatedService {
   frequency  String
   duration   String
 }
+
+model User {
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  passwordHash       String
+  subscriptionStatus String   @default("UNSUBSCRIBED") // 'SUBSCRIBED', 'UNSUBSCRIBED'
+  parentId           String?  // Linked parent account for Family Discount tier
+  createdAt          DateTime @default(now())
+}
+
+model Coupon {
+  id              String   @id @default(uuid())
+  code            String   @unique
+  isActive        Boolean  @default(true)
+  discountPercent Int      @default(100)
+  createdAt       DateTime @default(now())
+}

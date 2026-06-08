@@ -34,7 +34,29 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable}`}>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+        <div style={{ flex: 1 }}>{children}</div>
+        <footer style={{ 
+          width: "100%", 
+          padding: "2rem 1rem", 
+          textAlign: "center", 
+          background: "rgba(10, 15, 30, 0.4)",
+          borderTop: "1px solid var(--glass-border)",
+          fontSize: "0.85rem",
+          color: "var(--foreground)",
+          opacity: 0.8,
+          marginTop: "auto"
+        }}>
+          <div className="container">
+            <p style={{ maxWidth: "800px", margin: "0 auto", lineHeight: 1.5 }}>
+              The Special Education Navigator provides informational guidance based on existing law; it does not constitute legal advice or create an attorney-client relationship.
+            </p>
+            <p style={{ marginTop: "0.5rem", fontSize: "0.75rem", opacity: 0.5 }}>
+              &copy; 2026 The Special Education Navigator. Hawaii HAR Chapter 60 Compliant.
+            </p>
+          </div>
+        </footer>
+      </body>
     </html>
   );
 }

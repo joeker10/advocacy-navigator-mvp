@@ -1,13 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import prisma from '@/lib/prisma';
+import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { query, history, context, rag_chunks } = body;
+    let { query, history, context, rag_chunks } = body;
 
     if (!query) {
       return NextResponse.json({ error: 'No query provided' }, { status: 400 });
+    }
+
+    // Check auth status
+    const payload = getAuthenticatedUser(req);
+    let isSubscribed = false;
+
+    if (payload) {
+      const user = await prisma.user.findUnique({
+        where: { id: payload.userId }
+      });
+      if (user) {
+        let subscriptionStatus = user.subscriptionStatus;
+        if (user.parentId) {
+          const parent = await prisma.user.findUnique({
+            where: { id: user.parentId }
+          });
+          if (parent && parent.subscriptionStatus === 'SUBSCRIBED') {
+            subscriptionStatus = 'SUBSCRIBED';
+          }
+        }
+        if (subscriptionStatus === 'SUBSCRIBED') {
+          isSubscribed = true;
+        }
+      }
+    }
+
+    // Security Gate: disable document-specific analysis context for free/demo users
+    if (!isSubscribed) {
+      context = null;
+      rag_chunks = null;
+      if (query.length > 500) {
+        return NextResponse.json({ error: 'Query character limit exceeded' }, { status: 400 });
+      }
     }
 
     if (!process.env.GEMINI_API_KEY) {

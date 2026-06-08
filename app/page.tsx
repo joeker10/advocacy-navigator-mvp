@@ -22,25 +22,190 @@ export default function Home() {
   const audioChunksRef = useRef<BlobPart[]>([]);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
+  // Phase 13 Auth & Subscription States
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<any | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [isAuthModeLogin, setIsAuthModeLogin] = useState<boolean>(true);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
+  const [couponSuccess, setCouponSuccess] = useState("");
+  const [couponError, setCouponError] = useState("");
+  const [familyEmail, setFamilyEmail] = useState("");
+  const [familySuccess, setFamilySuccess] = useState("");
+  const [familyError, setFamilyError] = useState("");
+  const [appPromptCount, setAppPromptCount] = useState(0);
+
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isChatLoading]);
 
+  // Load theme and session on mount
   useEffect(() => {
-    // Determine system theme preference or strict local configuration
+    // Determine system theme preference
     const isDark = getUIPreference("darkMode", window.matchMedia('(prefers-color-scheme: dark)').matches);
     setDarkMode(isDark);
     document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+
+    // Verify session token
+    const savedToken = localStorage.getItem("spednav_auth_token");
+    if (savedToken) {
+      setToken(savedToken);
+      fetchSession(savedToken);
+    } else {
+      setAuthLoading(false);
+    }
   }, []);
+
+  const fetchSession = async (authToken: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/session`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${authToken}`
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUser(data.user);
+        setIsAuthenticated(true);
+      } else {
+        localStorage.removeItem("spednav_auth_token");
+        setToken(null);
+        setIsAuthenticated(false);
+      }
+    } catch (e) {
+      console.error("Session fetch error:", e);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    const endpoint = isAuthModeLogin ? "/api/auth/login" : "/api/auth/register";
+    try {
+      const res = await fetch(`${API_URL}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: authEmail, password: authPassword })
+      });
+      const data = await res.json();
+      if (data.success && data.token) {
+        localStorage.setItem("spednav_auth_token", data.token);
+        setToken(data.token);
+        setUser(data.user);
+        setIsAuthenticated(true);
+        setAuthEmail("");
+        setAuthPassword("");
+      } else {
+        setAuthError(data.error || "Authentication failed.");
+      }
+    } catch (err) {
+      setAuthError("Failed to connect to authentication server.");
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("spednav_auth_token");
+    setToken(null);
+    setUser(null);
+    setIsAuthenticated(false);
+    setShowSettings(false);
+    setMessages([]);
+    setExtractedDocuments([]);
+    setAppPromptCount(0);
+  };
+
+  const handleRedeemCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCouponSuccess("");
+    setCouponError("");
+    try {
+      const res = await fetch(`${API_URL}/api/auth/redeem`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ code: couponCode })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCouponSuccess(data.message);
+        setCouponCode("");
+        // Refresh session to get updated subscriptionStatus
+        if (token) fetchSession(token);
+      } else {
+        setCouponError(data.error || "Failed to redeem coupon.");
+      }
+    } catch (err) {
+      setCouponError("Redemption network error.");
+    }
+  };
+
+  const handleAddFamilyMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFamilySuccess("");
+    setFamilyError("");
+    try {
+      const res = await fetch(`${API_URL}/api/auth/family`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ email: familyEmail })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFamilySuccess(data.message);
+        setFamilyEmail("");
+        // Refresh session
+        if (token) fetchSession(token);
+      } else {
+        setFamilyError(data.error || "Failed to link family account.");
+      }
+    } catch (err) {
+      setFamilyError("Family link network error.");
+    }
+  };
+
+  const handleRemoveFamilyMember = async (id: string) => {
+    if (!confirm("Are you sure you want to remove this linked account?")) return;
+    try {
+      const res = await fetch(`${API_URL}/api/auth/family`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ id })
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Refresh session
+        if (token) fetchSession(token);
+      } else {
+        alert(data.error || "Failed to remove family member.");
+      }
+    } catch (err) {
+      alert("Network error unlinking member.");
+    }
+  };
 
   const toggleTheme = () => {
     const newVal = !darkMode;
     setDarkMode(newVal);
     setUIPreference("darkMode", newVal);
-    // Force explicit CSS override via data attribute
     document.documentElement.style.colorScheme = newVal ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', newVal ? 'dark' : 'light');
   };
@@ -49,16 +214,27 @@ export default function Home() {
     if (e) e.preventDefault();
     if (!chatInput.trim() || isChatLoading) return;
     
+    // Gate prompts for unsubscribed users
+    if (user && user.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 3) {
+      alert("Free chat limit reached. Please upgrade to a Subscribed account or redeem a coupon code in Settings to continue.");
+      return;
+    }
+
     const userMsg = chatInput.trim();
     setChatInput("");
     setMessages(prev => [...prev, {role: 'user', text: userMsg}]);
     setIsChatLoading(true);
 
     try {
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       // 2. Vectorize the user's query against the new standalone embedding endpoint
       const embedRes = await fetch(`${API_URL}/api/embed`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ text: userMsg })
       });
       const embedData = await embedRes.json();
@@ -83,7 +259,7 @@ export default function Home() {
       // 4. Send query + vectors to the primary Chat Synthesis API
       const res = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           query: userMsg,
           history: messages,
@@ -94,6 +270,9 @@ export default function Home() {
       const data = await res.json();
       if (data.success) {
         setMessages(prev => [...prev, {role: 'model', text: data.response}]);
+        if (user && user.subscriptionStatus !== 'SUBSCRIBED') {
+          setAppPromptCount(prev => prev + 1);
+        }
       } else {
         setMessages(prev => [...prev, {role: 'model', text: `Error: ${data.error}` }]);
       }
@@ -202,6 +381,13 @@ export default function Home() {
 
   const processStagedBatch = async () => {
     if (stagedFiles.length === 0) return;
+    
+    // Check subscription status
+    if (user && user.subscriptionStatus !== 'SUBSCRIBED') {
+      alert("Document uploads are locked for free users. Please upgrade to a Subscribed account in Settings.");
+      return;
+    }
+
     setIsUploading(true);
     
     try {
@@ -210,8 +396,14 @@ export default function Home() {
         formData.append('files', file);
       });
 
+      const headers: any = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const res = await fetch(`${API_URL}/api/extract`, {
         method: 'POST',
+        headers,
         body: formData,
       });
       
@@ -309,12 +501,88 @@ export default function Home() {
     }
   };
 
+  // Loading indicator for session restore
+  if (authLoading) {
+    return (
+      <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <p style={{ fontSize: "1.2rem", fontWeight: 600 }} className="animate-pulse">Loading Special Education Navigator...</p>
+      </main>
+    );
+  }
+
+  // Authentication View
+  if (!isAuthenticated) {
+    return (
+      <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem" }}>
+        <div className="glass-panel animate-slide-up" style={{ width: "100%", maxWidth: "440px", padding: "2.5rem" }}>
+          <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+            <img 
+              src="/navigator-logo.jpg" 
+              alt="Logo" 
+              style={{ width: "70px", height: "70px", borderRadius: "50%", border: "2px solid var(--glass-border)", marginBottom: "1rem", objectFit: "cover" }} 
+            />
+            <h2 style={{ fontSize: "1.75rem", fontWeight: 850 }}>SpEd Navigator</h2>
+            <p style={{ opacity: 0.7, fontSize: "0.9rem", marginTop: "0.25rem" }}>
+              {isAuthModeLogin ? "Sign in to access your child's advocate portal" : "Create your private zero-trust advocate account"}
+            </p>
+          </div>
+
+          <form onSubmit={handleAuthSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <div>
+              <label htmlFor="auth-email" style={{ display: "block", fontSize: "0.8rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Email Address</label>
+              <input 
+                id="auth-email"
+                type="email" 
+                value={authEmail} 
+                onChange={e => setAuthEmail(e.target.value)} 
+                required
+                style={{ width: "100%", padding: "0.75rem 1rem", borderRadius: "12px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }} 
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="auth-password" style={{ display: "block", fontSize: "0.8rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Password</label>
+              <input 
+                id="auth-password"
+                type="password" 
+                value={authPassword} 
+                onChange={e => setAuthPassword(e.target.value)} 
+                required
+                style={{ width: "100%", padding: "0.75rem 1rem", borderRadius: "12px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }} 
+              />
+            </div>
+
+            {authError && (
+              <p style={{ color: "hsl(0, 80%, 50%)", fontSize: "0.85rem", fontWeight: 600 }}>{authError}</p>
+            )}
+
+            <button 
+              type="submit" 
+              style={{ width: "100%", padding: "0.85rem", borderRadius: "12px", background: "var(--primary)", color: "white", fontWeight: 700, border: "none", cursor: "pointer", marginTop: "1rem", boxShadow: "0 4px 12px var(--primary-glow)" }}
+            >
+              {isAuthModeLogin ? "Sign In" : "Register Account"}
+            </button>
+          </form>
+
+          <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
+            <button 
+              onClick={() => { setIsAuthModeLogin(!isAuthModeLogin); setAuthError(""); }} 
+              style={{ background: "transparent", border: "none", color: "var(--primary)", fontWeight: 600, cursor: "pointer", fontSize: "0.9rem" }}
+            >
+              {isAuthModeLogin ? "Need an account? Register" : "Already have an account? Login"}
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main style={{ minHeight: "100vh", position: "relative", zIndex: 1, paddingBottom: "4rem" }}>
       {/* Top Navbar */}
       <nav style={{ 
         position: "sticky", top: 0, zIndex: 50,
-        background: "rgba(255, 255, 255, 0.05)",
+        background: "rgba(15, 23, 42, 0.8)",
         backdropFilter: "blur(16px)",
         WebkitBackdropFilter: "blur(16px)",
         borderBottom: "1px solid var(--glass-border)",
@@ -331,13 +599,26 @@ export default function Home() {
             />
             <h1 style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.01em" }}>The Special Education Navigator</h1>
           </div>
-          <div style={{ display: "flex", gap: "16px" }}>
+          <div style={{ display: "flex", gap: "12px" }}>
             <a href="/saved" style={{
               padding: "8px 16px", borderRadius: "20px", display: "flex", gap: "8px", alignItems: "center",
               background: "var(--primary-glow)", border: "1px solid var(--primary)", color: "var(--primary)",
               cursor: "pointer", fontWeight: 600, fontSize: "0.875rem", textDecoration: "none",
               boxShadow: "var(--shadow-sm)"
             }}>⭐ Saved Insights</a>
+            
+            <button 
+              onClick={() => setShowSettings(true)}
+              style={{
+                padding: "8px 16px", borderRadius: "20px", display: "flex", gap: "8px", alignItems: "center",
+                background: "var(--surface)", border: "1px solid var(--glass-border)", color: "var(--foreground)",
+                cursor: "pointer", fontWeight: 600, fontSize: "0.875rem", transition: "all var(--transition-normal)",
+                boxShadow: "var(--shadow-sm)"
+              }}
+            >
+              ⚙️ Settings
+            </button>
+
             <button 
               onClick={toggleTheme}
               style={{
@@ -352,6 +633,95 @@ export default function Home() {
           </div>
         </div>
       </nav>
+
+      {/* Settings Drawer / Modal */}
+      {showSettings && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", zIndex: 100, display: "flex", justifyContent: "flex-end" }} onClick={() => { setShowSettings(false); setCouponSuccess(""); setCouponError(""); setFamilySuccess(""); setFamilyError(""); }}>
+          <div className="glass-panel animate-slide-up" style={{ width: "100%", maxWidth: "450px", height: "100%", borderRadius: "0", background: "var(--background-end)", borderLeft: "1px solid var(--glass-border)", padding: "2.5rem", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
+              <h2 style={{ fontSize: "1.75rem", fontWeight: 800 }}>Account & Settings</h2>
+              <button onClick={() => { setShowSettings(false); setCouponSuccess(""); setCouponError(""); setFamilySuccess(""); setFamilyError(""); }} style={{ background: "transparent", border: "none", fontSize: "1.5rem", color: "var(--foreground)", cursor: "pointer" }}>&times;</button>
+            </div>
+
+            <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
+              <p style={{ fontSize: "0.85rem", opacity: 0.5, fontWeight: 700, textTransform: "uppercase" }}>Logged In As</p>
+              <p style={{ fontSize: "1.1rem", fontWeight: 600, marginTop: "0.25rem" }}>{user?.email}</p>
+              
+              <div style={{ marginTop: "1rem", display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "0.85rem", padding: "4px 12px", borderRadius: "20px", fontWeight: 700, background: user?.subscriptionStatus === "SUBSCRIBED" ? "var(--success-glow)" : "rgba(255,255,255,0.05)", border: user?.subscriptionStatus === "SUBSCRIBED" ? "1px solid var(--success)" : "1px solid var(--border)", color: user?.subscriptionStatus === "SUBSCRIBED" ? "var(--success)" : "var(--foreground)" }}>
+                  {user?.subscriptionStatus === "SUBSCRIBED" ? "👑 Subscribed (Unlimited)" : "Free Trial (Limited)"}
+                </span>
+                {user?.parentId && (
+                  <span style={{ fontSize: "0.8rem", opacity: 0.6 }}>Linked Family Account</span>
+                )}
+              </div>
+            </div>
+
+            {/* Coupon Redemption Section */}
+            {user?.subscriptionStatus !== "SUBSCRIBED" && (
+              <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
+                <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.75rem" }}>Redeem Promo Coupon</h3>
+                <p style={{ fontSize: "0.85rem", opacity: 0.7, marginBottom: "1rem" }}>Have a coupon code? Enter it below to unlock unlimited document analysis.</p>
+                
+                <form onSubmit={handleRedeemCoupon} style={{ display: "flex", gap: "0.5rem" }}>
+                  <input 
+                    type="text" 
+                    placeholder="E.g., NAVIGATE2026" 
+                    value={couponCode} 
+                    onChange={e => setCouponCode(e.target.value)} 
+                    style={{ flex: 1, padding: "0.6rem 1rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", textTransform: "uppercase" }} 
+                  />
+                  <button type="submit" style={{ padding: "0.6rem 1.2rem", borderRadius: "8px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: "pointer" }}>Apply</button>
+                </form>
+                {couponSuccess && <p style={{ color: "var(--success)", fontSize: "0.85rem", marginTop: "0.5rem", fontWeight: 600 }}>{couponSuccess}</p>}
+                {couponError && <p style={{ color: "hsl(0, 80%, 50%)", fontSize: "0.85rem", marginTop: "0.5rem", fontWeight: 600 }}>{couponError}</p>}
+              </div>
+            )}
+
+            {/* Family Discount Tier Section */}
+            {user?.subscriptionStatus === "SUBSCRIBED" && !user?.parentId && (
+              <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
+                <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>Family Discount Links</h3>
+                <p style={{ fontSize: "0.85rem", opacity: 0.7, marginBottom: "1rem" }}>Share your subscription benefits with up to 4 additional family email accounts.</p>
+                
+                <form onSubmit={handleAddFamilyMember} style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+                  <input 
+                    type="email" 
+                    placeholder="family@email.com" 
+                    value={familyEmail} 
+                    onChange={e => setFamilyEmail(e.target.value)} 
+                    style={{ flex: 1, padding: "0.6rem 1rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }} 
+                  />
+                  <button type="submit" style={{ padding: "0.6rem 1.2rem", borderRadius: "8px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: "pointer" }}>Link</button>
+                </form>
+                {familySuccess && <p style={{ color: "var(--success)", fontSize: "0.85rem", marginTop: "0.5rem", fontWeight: 600 }}>{familySuccess}</p>}
+                {familyError && <p style={{ color: "hsl(0, 80%, 50%)", fontSize: "0.85rem", marginTop: "0.5rem", fontWeight: 600 }}>{familyError}</p>}
+
+                {user?.linkedAccounts && user.linkedAccounts.length > 0 && (
+                  <div style={{ marginTop: "1rem" }}>
+                    <p style={{ fontSize: "0.75rem", fontWeight: 700, opacity: 0.5, textTransform: "uppercase", marginBottom: "0.5rem" }}>Linked Accounts</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                      {user.linkedAccounts.map((member: any) => (
+                        <div key={member.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--glass-border)", borderRadius: "8px" }}>
+                          <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>{member.email}</span>
+                          <button onClick={() => handleRemoveFamilyMember(member.id)} style={{ background: "transparent", border: "none", color: "hsl(0, 80%, 50%)", fontSize: "0.8rem", cursor: "pointer" }}>Unlink</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button 
+              onClick={handleLogout}
+              style={{ width: "100%", padding: "0.8rem", borderRadius: "12px", background: "hsla(0, 80%, 50%, 0.1)", border: "1px solid hsla(0, 80%, 50%, 0.3)", color: "hsl(0, 80%, 60%)", fontWeight: 700, cursor: "pointer", marginTop: "2rem" }}
+            >
+              Log Out
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="container" style={{ marginTop: "4rem" }}>
         
@@ -387,25 +757,41 @@ export default function Home() {
             {/* Animated Glass Dropzone */}
             <div 
               className="glass-panel"
-            style={{
-              padding: "4rem 2rem", textAlign: "center",
-              border: isDragActive ? "2px solid var(--primary)" : "1px solid var(--glass-border)",
-              boxShadow: isDragActive ? "0 0 40px var(--primary-glow)" : "var(--shadow-md)",
-              animation: isDragActive ? "pulse-glow 2s infinite" : "none",
-              transition: "all var(--transition-normal)", cursor: "pointer", position: "relative",
-              overflow: "hidden"
-            }}
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
-          >
-            {/* Visual Indicator Background */}
-            <div style={{
-              position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-              background: "linear-gradient(45deg, transparent, var(--primary-glow), transparent)",
-              opacity: isUploading ? 0.5 : 0, transition: "opacity 0.5s ease",
-              animation: isUploading ? "slide-up 2s infinite alternate" : "none", pointerEvents: "none"
-            }}/>
+              style={{
+                padding: "4rem 2rem", textAlign: "center",
+                border: isDragActive ? "2px solid var(--primary)" : "1px solid var(--glass-border)",
+                boxShadow: isDragActive ? "0 0 40px var(--primary-glow)" : "var(--shadow-md)",
+                animation: isDragActive ? "pulse-glow 2s infinite" : "none",
+                transition: "all var(--transition-normal)", cursor: "pointer", position: "relative",
+                overflow: "hidden"
+              }}
+              onDragOver={user?.subscriptionStatus === 'SUBSCRIBED' ? onDragOver : undefined}
+              onDragLeave={user?.subscriptionStatus === 'SUBSCRIBED' ? onDragLeave : undefined}
+              onDrop={user?.subscriptionStatus === 'SUBSCRIBED' ? onDrop : undefined}
+            >
+              {/* Free Tier Upload Lock Overlay */}
+              {user?.subscriptionStatus !== 'SUBSCRIBED' && (
+                <div style={{
+                  position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                  background: "rgba(15, 23, 42, 0.8)", backdropFilter: "blur(12px)",
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                  padding: "2rem", zIndex: 20
+                }}>
+                  <span style={{ fontSize: "2rem", marginBottom: "0.50rem" }}>🔒</span>
+                  <h4 style={{ fontWeight: 800, fontSize: "1.25rem", marginBottom: "0.5rem", color: "var(--foreground)" }}>Document Scanning Locked</h4>
+                  <p style={{ fontSize: "0.9rem", opacity: 0.8, maxWidth: "340px", margin: "0 auto", lineHeight: 1.5 }}>
+                    Uploading and extracting multi-document IEPs requires an active subscription. Open Settings to upgrade or redeem a coupon code.
+                  </p>
+                </div>
+              )}
+
+              {/* Visual Indicator Background */}
+              <div style={{
+                position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                background: "linear-gradient(45deg, transparent, var(--primary-glow), transparent)",
+                opacity: isUploading ? 0.5 : 0, transition: "opacity 0.5s ease",
+                animation: isUploading ? "slide-up 2s infinite alternate" : "none", pointerEvents: "none"
+              }}/>
 
             {!isUploading && extractedDocuments.length === 0 ? (
               <div className="animate-slide-up">
@@ -463,13 +849,14 @@ export default function Home() {
               />
               <button 
                 onClick={() => cameraInputRef.current?.click()}
-                disabled={isUploading}
+                disabled={isUploading || user?.subscriptionStatus !== 'SUBSCRIBED'}
                 style={{
                   flex: 1, padding: "1rem", borderRadius: "16px",
                   background: "var(--surface)", border: "1px solid var(--border)",
                   color: "var(--foreground)", fontSize: "1rem", fontWeight: 600,
-                  cursor: isUploading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
-                  transition: "all 0.2s"
+                  cursor: (isUploading || user?.subscriptionStatus !== 'SUBSCRIBED') ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                  transition: "all 0.2s",
+                  opacity: user?.subscriptionStatus !== 'SUBSCRIBED' ? 0.5 : 1
                 }}
               >
                 📸 Take Photo
@@ -477,18 +864,19 @@ export default function Home() {
 
               <button 
                 onClick={isRecording ? stopRecording : startRecording}
-                disabled={isUploading && !isRecording}
+                disabled={(isUploading && !isRecording) || user?.subscriptionStatus !== 'SUBSCRIBED'}
                 style={{
                   flex: 1, padding: "1rem", borderRadius: "16px",
                   background: isRecording ? "hsl(0, 80%, 50%)" : "var(--surface)", 
                   border: isRecording ? "none" : "1px solid var(--border)",
                   color: isRecording ? "white" : "var(--foreground)", 
                   fontSize: "1rem", fontWeight: 600,
-                  cursor: isUploading && !isRecording ? "not-allowed" : "pointer", 
+                  cursor: ((isUploading && !isRecording) || user?.subscriptionStatus !== 'SUBSCRIBED') ? "not-allowed" : "pointer", 
                   display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
                   animation: isRecording ? "pulse-glow 1.5s infinite" : "none",
                   boxShadow: isRecording ? "0 0 20px hsla(0, 80%, 50%, 0.5)" : "none",
-                  transition: "all 0.2s"
+                  transition: "all 0.2s",
+                  opacity: (!isRecording && user?.subscriptionStatus !== 'SUBSCRIBED') ? 0.5 : 1
                 }}
               >
                 {isRecording ? "⏹ Stop Recording" : "🎙️ Record Audio"}
@@ -641,13 +1029,18 @@ export default function Home() {
               type="text" 
               value={chatInput} 
               onChange={e => setChatInput(e.target.value)} 
-              placeholder={extractedDocuments.length > 0 ? "E.g., Does the Assessment contradict the IEP's Needs?" : "E.g., What is an IEP timeline in Hawaii?"}
+              disabled={isChatLoading || (user?.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 3)}
+              placeholder={
+                user?.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 3 
+                  ? "Prompt limit reached (3/3). Upgrade in Settings to unlock unlimited messaging." 
+                  : (extractedDocuments.length > 0 ? "E.g., Does the Assessment contradict the IEP's Needs?" : "E.g., What is an IEP timeline in Hawaii?")
+              }
               style={{ flex: 1, minWidth: 0, padding: "0.75rem 1rem", borderRadius: "30px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", fontSize: "1rem", outline: "none", boxShadow: "inset 0 2px 4px rgba(0,0,0,0.05)" }}
             />
             <button 
               type="submit" 
-              disabled={isChatLoading || !chatInput.trim()}
-              style={{ flexShrink: 0, padding: "0 1.5rem", borderRadius: "30px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: (isChatLoading || !chatInput.trim()) ? "not-allowed" : "pointer", opacity: (isChatLoading || !chatInput.trim()) ? 0.7 : 1, transition: "all var(--transition-fast)", boxShadow: "0 4px 12px var(--primary-glow)" }}
+              disabled={isChatLoading || !chatInput.trim() || (user?.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 3)}
+              style={{ flexShrink: 0, padding: "0 1.5rem", borderRadius: "30px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: (isChatLoading || !chatInput.trim() || (user?.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 3)) ? "not-allowed" : "pointer", opacity: (isChatLoading || !chatInput.trim() || (user?.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 3)) ? 0.7 : 1, transition: "all var(--transition-fast)", boxShadow: "0 4px 12px var(--primary-glow)" }}
             >
               Send
             </button>

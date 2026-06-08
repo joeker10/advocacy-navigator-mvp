@@ -1,9 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI, Schema, SchemaType } from '@google/generative-ai';
 import { encryptPHI, pseudonymize } from '@/lib/security';
+import prisma from '@/lib/prisma';
+import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
+    const payload = getAuthenticatedUser(req);
+    if (!payload) {
+      return NextResponse.json({ error: 'Unauthorized: Authentication required for document extraction' }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId }
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 401 });
+    }
+
+    let subscriptionStatus = user.subscriptionStatus;
+    if (user.parentId) {
+      const parent = await prisma.user.findUnique({
+        where: { id: user.parentId }
+      });
+      if (parent && parent.subscriptionStatus === 'SUBSCRIBED') {
+        subscriptionStatus = 'SUBSCRIBED';
+      }
+    }
+
+    if (subscriptionStatus !== 'SUBSCRIBED') {
+      return NextResponse.json({ error: 'Forbidden: Document extraction requires an active subscription' }, { status: 403 });
+    }
+
     const formData = await req.formData();
     const files = formData.getAll('files') as File[];
     if (!files || files.length === 0) {
