@@ -67,3 +67,22 @@ model Coupon {
   discountPercent Int      @default(100)
   createdAt       DateTime @default(now())
 }
+
+model Post {
+  id        String   @id @default(uuid())
+  title     String
+  category  String
+  excerpt   String
+  content   String
+  date      String
+  createdAt DateTime @default(now())
+}
+
+model Resource {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  fileName    String
+  fileContent String
+  createdAt   DateTime @default(now())
+}

@@ -1,71 +1,45 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Navbar from "@/app/components/Navbar";
 
+interface Resource {
+  id: string;
+  title: string;
+  description: string;
+  fileName: string;
+  fileContent: string;
+}
+
 export default function DownloadsPage() {
-  const handleDownloadTemplate = (fileName: string) => {
-    // Generate text/markdown or basic template mock contents and download
-    let content = "";
-    if (fileName === "IEP_Evaluation_Request_Template.txt") {
-      content = `To: [Principal Name]
-School: [School Name]
-Address: [School Address]
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-RE: Written Request for Special Education Evaluation / Section 54 eligibility
-Student Name: [Child Name]
-Date of Birth: [DOB]
-Grade: [Grade]
-
-Dear Principal,
-
-I am writing to formally request a comprehensive educational evaluation for my child, [Child Name], to determine eligibility for special education services and related services under the Individuals with Disabilities Education Act (IDEA) and Hawaii Administrative Rules (HAR) Chapter 60.
-
-I am requesting this evaluation because:
-[List observations here, e.g. struggles with reading fluency, fine motor difficulties, speech delay, behavioral struggles]
-
-I understand that under HAR Chapter 60, the Department of Education has exactly 60 calendar days from the date they receive my signed written consent to complete all evaluations and convene the eligibility determination meeting.
-
-Please provide the Consent for Evaluation forms as soon as possible so we may proceed.
-
-Sincerely,
-
-_________________________________________
-[Parent/Guardian Name]
-Date: [Current Date]
-Email: [Your Email]
-Phone: [Your Phone]`;
-    } else if (fileName === "IEP_Meeting_Checklist.txt") {
-      content = `THE SPECIAL EDUCATION NAVIGATOR: IEP MEETING CHECKLIST
-For Hawaii Parents (HAR Chapter 60 Compliant)
-
-Before the Meeting:
-[ ] Request all draft evaluation reports and draft IEP documents at least 3 days prior.
-[ ] Identify your child's core strengths, needs, and areas of concern.
-[ ] Formulate a list of requested accommodations and related services.
-[ ] If audio-recording the meeting, notify the principal/administration in writing 24 hours in advance.
-
-During the Meeting:
-[ ] Ensure the PLEP (Present Levels of Educational Performance) contains objective baseline data.
-[ ] Verify that every need identified in the evaluations has a matching annual goal.
-[ ] Check that accommodations are Specific (e.g. "frequent breaks every 20 minutes" rather than "as needed").
-[ ] Review the Related Services matrix: Verify therapist session duration, frequency, and location (General vs Special Ed).
-[ ] Ask the coordinator to document any rejected accommodations in the PWN (Prior Written Notice).
-
-After the Meeting:
-[ ] Review the official meeting notes for accuracy.
-[ ] Review the draft IEP document before signing consent.
-[ ] Keep a copy of the final, signed IEP in your physical records vault.`;
-    } else {
-      content = `Hawaii Administrative Rules (HAR) Chapter 60 Reference Sheet
-For Parents and Advocates
-
-1. Zero-Reject Policy: Every child with a disability in the State of Hawaii is entitled to a free appropriate public education (FAPE).
-2. Evaluation (HAR §8-60-36): Complete evaluations must occur within 60 days of written parent consent.
-3. Parental Participation (HAR §8-60-45): Parents are equal partners in the IEP team. Meetings must be scheduled at mutually agreeable times.
-4. Prior Written Notice (HAR §8-60-58): The school must give written explanation whenever they propose OR refuse to change the identification, evaluation, or educational placement of your child.`;
+  useEffect(() => {
+    async function loadResources() {
+      try {
+        const res = await fetch("/api/downloads");
+        if (!res.ok) {
+          throw new Error(`Failed to fetch: ${res.statusText}`);
+        }
+        const data = await res.json();
+        if (data.success) {
+          setResources(data.resources);
+        } else {
+          throw new Error(data.error || "Unknown error");
+        }
+      } catch (err: any) {
+        console.error("Error loading resources:", err);
+        setError(err.message || "Failed to load downloadable resources");
+      } finally {
+        setLoading(false);
+      }
     }
+    loadResources();
+  }, []);
 
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const handleDownload = (fileName: string, fileContent: string) => {
+    const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -160,84 +134,87 @@ For Parents and Advocates
             Download ready-to-use text files and templates to formally document correspondence with school coordinators and principals.
           </p>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "2rem" }}>
-            <div className="glass-panel" style={{ padding: "2rem", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>✉️</div>
-                <h3 style={{ fontSize: "1.25rem", fontWeight: 700, marginBottom: "0.5rem" }}>Evaluation Request Template</h3>
-                <p style={{ opacity: 0.7, fontSize: "0.9rem", lineHeight: 1.5, marginBottom: "1.5rem" }}>
-                  A formal letter to request a comprehensive educational and psychological assessment under HAR Chapter 60.
-                </p>
-              </div>
+          {loading ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "2rem" }}>
+              {[1, 2, 3].map((n) => (
+                <div 
+                  key={n} 
+                  className="glass-panel"
+                  style={{ 
+                    padding: "2rem", 
+                    minHeight: "220px", 
+                    display: "flex", 
+                    flexDirection: "column", 
+                    justifyContent: "space-between",
+                    opacity: 0.5,
+                    animation: "pulse 1.5s infinite ease-in-out"
+                  }}
+                >
+                  <div>
+                    <div style={{ width: "50px", height: "50px", background: "rgba(255, 255, 255, 0.1)", borderRadius: "12px", marginBottom: "1rem" }}></div>
+                    <div style={{ width: "70%", height: "20px", background: "rgba(255, 255, 255, 0.1)", borderRadius: "4px", marginBottom: "0.5rem" }}></div>
+                    <div style={{ width: "100%", height: "40px", background: "rgba(255, 255, 255, 0.1)", borderRadius: "4px" }}></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : error ? (
+            <div className="glass-panel" style={{ padding: "2rem", textAlign: "center", border: "1px solid var(--error-glow)" }}>
+              <p style={{ color: "red", fontWeight: 600 }}>{error}</p>
               <button 
-                onClick={() => handleDownloadTemplate("IEP_Evaluation_Request_Template.txt")}
+                onClick={() => { setLoading(true); setError(null); }}
                 style={{
-                  padding: "10px 18px",
-                  borderRadius: "12px",
-                  background: "var(--primary-glow)",
-                  border: "1px solid var(--primary)",
-                  color: "var(--primary)",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  width: "100%"
+                  marginTop: "1rem",
+                  background: "var(--primary)",
+                  border: "none",
+                  color: "white",
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  cursor: "pointer"
                 }}
               >
-                Download Template
+                Retry
               </button>
             </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "2rem" }}>
+              {resources.map((resource) => {
+                let icon = "📖";
+                const titleLower = resource.title.toLowerCase();
+                if (titleLower.includes("checklist")) icon = "📋";
+                if (titleLower.includes("request") || titleLower.includes("template")) icon = "✉️";
 
-            <div className="glass-panel" style={{ padding: "2rem", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>📋</div>
-                <h3 style={{ fontSize: "1.25rem", fontWeight: 700, marginBottom: "0.5rem" }}>IEP Meeting Checklist</h3>
-                <p style={{ opacity: 0.7, fontSize: "0.9rem", lineHeight: 1.5, marginBottom: "1.5rem" }}>
-                  Step-by-step checklist guide covering what to prepare before, verify during, and check after the meeting.
-                </p>
-              </div>
-              <button 
-                onClick={() => handleDownloadTemplate("IEP_Meeting_Checklist.txt")}
-                style={{
-                  padding: "10px 18px",
-                  borderRadius: "12px",
-                  background: "var(--primary-glow)",
-                  border: "1px solid var(--primary)",
-                  color: "var(--primary)",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  width: "100%"
-                }}
-              >
-                Download Checklist
-              </button>
+                return (
+                  <div key={resource.id} className="glass-panel animate-slide-up" style={{ padding: "2rem", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <div>
+                      <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>{icon}</div>
+                      <h3 style={{ fontSize: "1.25rem", fontWeight: 700, marginBottom: "0.5rem" }}>{resource.title}</h3>
+                      <p style={{ opacity: 0.7, fontSize: "0.9rem", lineHeight: 1.5, marginBottom: "1.5rem" }}>
+                        {resource.description}
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => handleDownload(resource.fileName, resource.fileContent)}
+                      style={{
+                        padding: "10px 18px",
+                        borderRadius: "12px",
+                        background: "var(--primary-glow)",
+                        border: "1px solid var(--primary)",
+                        color: "var(--primary)",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        width: "100%",
+                        transition: "all var(--transition-fast)"
+                      }}
+                    >
+                      Download {resource.fileName.split('.').pop()?.toUpperCase() || "File"}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
-
-            <div className="glass-panel" style={{ padding: "2rem", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>📖</div>
-                <h3 style={{ fontSize: "1.25rem", fontWeight: 700, marginBottom: "0.5rem" }}>HAR Chapter 60 Cheat Sheet</h3>
-                <p style={{ opacity: 0.7, fontSize: "0.9rem", lineHeight: 1.5, marginBottom: "1.5rem" }}>
-                  Quick reference matrix outlining parent participation rights, zero-reject mandates, and procedural notices.
-                </p>
-              </div>
-              <button 
-                onClick={() => handleDownloadTemplate("HAR_Chapter_60_Cheat_Sheet.txt")}
-                style={{
-                  padding: "10px 18px",
-                  borderRadius: "12px",
-                  background: "var(--primary-glow)",
-                  border: "1px solid var(--primary)",
-                  color: "var(--primary)",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  width: "100%"
-                }}
-              >
-                Download Reference
-              </button>
-            </div>
-          </div>
+          )}
         </section>
-
       </div>
     </main>
   );
