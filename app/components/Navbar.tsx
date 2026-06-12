@@ -44,9 +44,6 @@ export default function Navbar() {
           <a href="/downloads" role="menuitem" style={{ color: "var(--foreground)", fontWeight: 500, fontSize: "0.95rem", padding: "6px 12px", borderRadius: "8px" }}>
             Downloads
           </a>
-          <a href="/admin" role="menuitem" style={{ color: "var(--foreground)", fontWeight: 500, fontSize: "0.95rem", padding: "6px 12px", borderRadius: "8px" }}>
-            Admin
-          </a>
           <a href="/demo" role="menuitem" style={{ color: "var(--foreground)", fontWeight: 500, fontSize: "0.95rem", padding: "6px 12px", background: "var(--primary-glow)", border: "1px solid var(--primary)", borderRadius: "20px" }}>
             Try Demo
           </a>
