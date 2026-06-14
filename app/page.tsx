@@ -588,16 +588,32 @@ export default function Home() {
         borderBottom: "1px solid var(--glass-border)",
       }}>
         <div className="container" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "72px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <img 
-              src="/navigator-logo.jpg" 
-              alt="Logo" 
-              style={{ 
-                width: "40px", height: "40px", borderRadius: "50%", 
-                boxShadow: "0 4px 12px var(--primary-glow)", border: "1px solid var(--glass-border)", objectFit: "cover"
-              }} 
-            />
-            <h1 style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.01em" }}>The Special Education Navigator</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+            <a href="/home" style={{ display: "flex", alignItems: "center", gap: "12px", textDecoration: "none", color: "var(--foreground)" }} aria-label="Special Education Navigator Home">
+              <img 
+                src="/navigator-logo.jpg" 
+                alt="" 
+                style={{ 
+                  width: "40px", height: "40px", borderRadius: "50%", 
+                  boxShadow: "0 4px 12px var(--primary-glow)", border: "1px solid var(--glass-border)", objectFit: "cover"
+                }} 
+              />
+              <span style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.01em", color: "var(--foreground)" }}>
+                SpEd Navigator
+              </span>
+            </a>
+            
+            <div style={{ display: "flex", gap: "16px", marginLeft: "12px" }} role="navigation" aria-label="Public Pages Menu">
+              <a href="/home" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
+                Home
+              </a>
+              <a href="/posts" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
+                Articles
+              </a>
+              <a href="/downloads" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
+                Downloads
+              </a>
+            </div>
           </div>
           <div style={{ display: "flex", gap: "12px" }}>
             <a href="/saved" style={{
