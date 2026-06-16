@@ -94,34 +94,29 @@ export default function DownloadsPage() {
               </div>
             </a>
 
-            <a 
-              href="https://www.apple.com/app-store" 
-              target="_blank" 
-              rel="noopener noreferrer"
+            <div 
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "12px",
-                background: "#000",
-                color: "#fff",
+                background: "#080808",
+                color: "#777",
                 padding: "14px 28px",
                 borderRadius: "16px",
                 fontWeight: 700,
                 fontSize: "1.05rem",
-                textDecoration: "none",
-                boxShadow: "0 6px 20px rgba(0,0,0,0.4)",
-                border: "1px solid rgba(255,255,255,0.15)",
-                transition: "transform 0.2s"
+                border: "1px solid rgba(255,255,255,0.05)",
+                boxShadow: "none",
+                opacity: 0.6,
+                cursor: "not-allowed"
               }}
-              onMouseOver={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
-              onMouseOut={(e) => e.currentTarget.style.transform = "translateY(0)"}
             >
-              <span style={{ fontSize: "1.75rem" }}>🍏</span>
+              <span style={{ fontSize: "1.75rem", filter: "grayscale(1) brightness(0.4)" }}>🍏</span>
               <div style={{ textAlign: "left" }}>
-                <span style={{ fontSize: "0.75rem", display: "block", opacity: 0.6, fontWeight: 500 }}>DOWNLOAD ON THE</span>
-                <span style={{ display: "block" }}>App Store</span>
+                <span style={{ fontSize: "0.70rem", display: "block", opacity: 0.6, fontWeight: 500, letterSpacing: "0.5px", color: "var(--primary)" }}>COMING FALL 2026</span>
+                <span style={{ display: "block", color: "#555" }}>App Store</span>
               </div>
-            </a>
+            </div>
           </div>
         </section>
 

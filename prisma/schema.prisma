@@ -52,19 +52,25 @@ model RelatedService {
 }
 
 model User {
-  id                 String   @id @default(uuid())
-  email              String   @unique
+  id                 String    @id @default(uuid())
+  email              String    @unique
   passwordHash       String
-  subscriptionStatus String   @default("UNSUBSCRIBED") // 'SUBSCRIBED', 'UNSUBSCRIBED'
-  parentId           String?  // Linked parent account for Family Discount tier
-  createdAt          DateTime @default(now())
+  subscriptionStatus String    @default("UNSUBSCRIBED") // 'SUBSCRIBED', 'UNSUBSCRIBED'
+  parentId           String?   // Linked parent account for Family Discount tier
+  createdAt          DateTime  @default(now())
+  twoFactorEnabled   Boolean   @default(false)
+  twoFactorSecret    String?
+  twoFactorExpires   DateTime?
 }
 
 model Coupon {
   id              String   @id @default(uuid())
   code            String   @unique
   isActive        Boolean  @default(true)
-  discountPercent Int      @default(100)
+  discountType    String   @default("PERCENT") // "PERCENT" or "FIXED"
+  discountValue   Float    @default(100.0)
+  applicablePlan  String   @default("ALL")     // "ALL", "MONTHLY", "THREE_MONTH", "ANNUAL"
+  deployedTo      String   @default("")
   createdAt       DateTime @default(now())
 }
 
@@ -84,5 +90,17 @@ model Resource {
   description String
   fileName    String
   fileContent String
+  createdAt   DateTime @default(now())
+}
+
+model Video {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  youtubeId   String   // The 11-character YouTube video ID
+  type        String   // 'short' or 'video'
+  category    String   // 'IEP Timelines', 'HAR Chapter 60', etc.
+  duration    String   // e.g. '0:58' or '12:30'
+  releasedAt  String   // e.g. 'June 2026'
   createdAt   DateTime @default(now())
 }

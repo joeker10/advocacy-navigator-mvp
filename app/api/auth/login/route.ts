@@ -32,6 +32,38 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // If 2-Factor Authentication is enabled, intercept login and issue tempToken
+    if (user.twoFactorEnabled) {
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const codeExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          twoFactorSecret: code,
+          twoFactorExpires: codeExpires
+        }
+      });
+
+      console.log(`\n=================================================`);
+      console.log(`[2FA OTP] Code generated for user: ${user.email}`);
+      console.log(`[2FA OTP] Code: ${code}`);
+      console.log(`[2FA OTP] Expires at: ${codeExpires.toISOString()}`);
+      console.log(`=================================================\n`);
+
+      const tempToken = signToken({
+        userId: user.id,
+        email: user.email,
+        is2faTemp: true
+      }, 300); // 5 minutes expiration
+
+      return NextResponse.json({
+        success: true,
+        twoFactorRequired: true,
+        tempToken
+      });
+    }
+
     // Sign session JWT
     const token = signToken({
       userId: user.id,
@@ -45,7 +77,8 @@ export async function POST(req: NextRequest) {
       user: {
         id: user.id,
         email: user.email,
-        subscriptionStatus
+        subscriptionStatus,
+        twoFactorEnabled: user.twoFactorEnabled
       }
     });
 

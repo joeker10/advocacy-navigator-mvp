@@ -4,6 +4,7 @@ import { encryptPHI, pseudonymize } from '@/lib/security';
 import prisma from '@/lib/prisma';
 import { getAuthenticatedUser } from '@/lib/auth';
 import { retryWithBackoff } from '@/lib/gemini';
+import { extractTextFromZip, parseDocxText, parseOdtText } from '@/lib/documentParser';
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,19 +41,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No media files uploaded' }, { status: 400 });
     }
 
-    const inlineDataParts: any[] = [];
+    const parts: any[] = [];
     let primaryMimeType = files[0].type;
     let combinedFileName = files.length > 1 ? `Batch_${files.length}_Documents` : files[0].name;
 
     for (const file of files) {
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      inlineDataParts.push({
-        inlineData: {
-          data: buffer.toString('base64'),
-          mimeType: file.type
-        }
-      });
+      
+      const isDocx = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx');
+      const isOdt = file.type === 'application/vnd.oasis.opendocument.text' || file.name.endsWith('.odt');
+
+      if (isDocx) {
+        const xml = extractTextFromZip(buffer, ['word/document.xml']);
+        const text = xml ? parseDocxText(xml) : '';
+        parts.push({
+          text: `Document Name: ${file.name}\nDocument Plain Text Content:\n${text}\n`
+        });
+      } else if (isOdt) {
+        const xml = extractTextFromZip(buffer, ['content.xml']);
+        const text = xml ? parseOdtText(xml) : '';
+        parts.push({
+          text: `Document Name: ${file.name}\nDocument Plain Text Content:\n${text}\n`
+        });
+      } else {
+        parts.push({
+          inlineData: {
+            data: buffer.toString('base64'),
+            mimeType: file.type
+          }
+        });
+      }
     }
 
     // Initialize Generative AI 
@@ -70,9 +89,11 @@ export async function POST(req: NextRequest) {
         strengths: { type: SchemaType.STRING, description: "Main strengths of the student identified in the document" },
         needs: { type: SchemaType.STRING, description: "Main needs or areas of deficit for the student" },
         takeaways: { type: SchemaType.STRING, description: "Overall summary and key takeaways from the assessment or IEP" },
-        accommodations: { type: SchemaType.STRING, description: "Accommodations, modifications, or specially designed instruction required" }
+        accommodations: { type: SchemaType.STRING, description: "Accommodations, modifications, or specially designed instruction required" },
+        rawTranscript: { type: SchemaType.STRING, description: "A comprehensive raw text transcript or OCR text reconstructed from the audio, image, or document" },
+        uncertainties: { type: SchemaType.STRING, description: "List specific sections, words, or data points where you are uncertain, handwriting is illegible, or fields are ambiguous. If none, write 'None'." }
       },
-      required: ["assessmentName", "assessmentVersion", "behavioralInfo", "strengths", "needs", "takeaways", "accommodations"]
+      required: ["assessmentName", "assessmentVersion", "behavioralInfo", "strengths", "needs", "takeaways", "accommodations", "rawTranscript", "uncertainties"]
     };
 
     const model = genAI.getGenerativeModel({
@@ -90,21 +111,30 @@ export async function POST(req: NextRequest) {
       If there are multiple pages or documents attached, synthesize them together into a single unified extraction.
       Pay special attention to tabular data, matrices, and visual checkboxes.
       Ensure information is concise and exactly maps to the student's legal rights.
+
+      For 'rawTranscript', perform strict OCR to reconstruct the full textual content of the document.
+      For 'uncertainties', identify any fields or sections where you are uncertain, information was illegible/ambiguous, or draft fields were incomplete. If none, write 'None'.
     `;
 
     if (primaryMimeType.startsWith('image/')) {
       promptText = `
         You are an expert Special Education Advocate. Your task is to analyze the attached image(s), performing strong OCR to read handwritten notes, behavioral logs, or IEP matrices. 
         If multiple images are attached, they represent sequential pages of a single document. Synthesize them into a single extraction. Strictly extract the requested fields. Ensure information is concise.
+
+        For 'rawTranscript', perform strict OCR to reconstruct the full textual content of the image(s).
+        For 'uncertainties', identify any areas of handwritten notes or illegible sections where you have uncertainty. If none, write 'None'.
       `;
     } else if (primaryMimeType.startsWith('audio/')) {
       promptText = `
         You are an expert Special Education Advocate. Your task is to analyze the attached audio recording of an IEP or 504 meeting. Transcribe the relevant conversation and extract the requested fields based on the verbal commitments made by school staff.
+
+        For 'rawTranscript', provide a comprehensive transcription of the dialogue in the audio recording.
+        For 'uncertainties', identify any inaudible words, speech overlap, or ambiguity in verbal commitments. If none, write 'None'.
       `;
     }
 
     const aiResult = await retryWithBackoff(
-      () => model.generateContent([promptText, ...inlineDataParts]),
+      () => model.generateContent([promptText, ...parts]),
       3,
       1000,
       async () => {
@@ -117,7 +147,7 @@ export async function POST(req: NextRequest) {
             temperature: 0.2,
           }
         });
-        return await fallbackModel.generateContent([promptText, ...inlineDataParts]);
+        return await fallbackModel.generateContent([promptText, ...parts]);
       }
     );
     const responseText = aiResult.response.text();

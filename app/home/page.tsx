@@ -118,10 +118,9 @@ export default function HomePage() {
 
         {/* Help Directory Integration */}
         <section className="glass-panel animate-slide-up animate-delay-3" style={{ marginTop: "5rem", padding: "3rem 2rem", textAlign: "center" }}>
-          <h2 style={{ fontSize: "2rem", fontWeight: 800, marginBottom: "1rem" }}>Need Direct Legal Support?</h2>
-          <p style={{ maxWidth: "650px", margin: "0 auto 2rem auto", opacity: 0.8, lineHeight: 1.6 }}>
-            The SpEd Navigator connects you with Hawaii's official parent support networks. 
-            If you need to escalate, contact the following resources directly.
+          <h2 style={{ fontSize: "2rem", fontWeight: 800, marginBottom: "1rem" }}>Need Direct Advocacy Support?</h2>
+          <p style={{ maxWidth: "700px", margin: "0 auto 2rem auto", opacity: 0.8, lineHeight: 1.6 }}>
+            If you need to escalate, reach out to the Special Education Navigator at <a href="mailto:thespecialeducationnavigator@gmail.com" style={{ color: "var(--primary)", textDecoration: "underline" }}>thespecialeducationnavigator@gmail.com</a>. Or contact one of Hawaii's official parent support networks directly.
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "2rem" }}>
             <div style={{ padding: "1.5rem", borderRadius: "16px", background: "var(--background)", border: "1px solid var(--border)", minWidth: "250px" }}>
@@ -132,10 +131,10 @@ export default function HomePage() {
             </div>
             
             <div style={{ padding: "1.5rem", borderRadius: "16px", background: "var(--background)", border: "1px solid var(--border)", minWidth: "250px" }}>
-              <h3 style={{ fontWeight: 700, color: "var(--secondary)" }}>SPIN</h3>
-              <p style={{ fontSize: "0.85rem", opacity: 0.6, margin: "0.25rem 0" }}>Special Parent Information Network</p>
-              <p style={{ fontWeight: 600, fontSize: "1.1rem", marginTop: "0.5rem" }}>(808) 586-8126</p>
-              <a href="https://www.spinhawaii.org" target="_blank" rel="noopener noreferrer" style={{ color: "var(--secondary)", textDecoration: "underline", fontSize: "0.85rem", display: "block", marginTop: "0.25rem" }}>www.spinhawaii.org</a>
+              <h3 style={{ fontWeight: 700, color: "var(--secondary)" }}>HDRC</h3>
+              <p style={{ fontSize: "0.85rem", opacity: 0.6, margin: "0.25rem 0" }}>Hawaii Disability Rights Center</p>
+              <p style={{ fontWeight: 600, fontSize: "1.1rem", marginTop: "0.5rem" }}>(808) 949-2922</p>
+              <a href="https://hawaiidisabilityrights.org/" target="_blank" rel="noopener noreferrer" style={{ color: "var(--secondary)", textDecoration: "underline", fontSize: "0.85rem", display: "block", marginTop: "0.25rem" }}>hawaiidisabilityrights.org</a>
             </div>
           </div>
         </section>

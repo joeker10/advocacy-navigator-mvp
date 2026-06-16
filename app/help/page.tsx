@@ -17,12 +17,12 @@ const contacts = [
     services: "Community Outreach, Localized Mentoring"
   },
   {
-    org: "SPIN",
-    address: "1010 Richards St., Room 118, Honolulu, HI 96813",
-    phone: "(808) 586-8126",
-    email: "spin@doh.hawaii.gov",
-    website: "www.spinhawaii.org",
-    services: "Info & Referral, SEAC Support, Newsletters"
+    org: "Hawaii Disability Rights Center (HDRC)",
+    address: "1001 Bishop St, Ste 1110, Honolulu, HI 96813",
+    phone: "(808) 949-2922",
+    email: "info@hawaiidisabilityrights.org",
+    website: "hawaiidisabilityrights.org",
+    services: "Protection & Advocacy, Legal Representation, Disability Rights Advocacy"
   },
   {
     org: "DCAB",

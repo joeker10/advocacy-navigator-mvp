@@ -1,0 +1,78 @@
+name: Build and Deploy to Google Play Store
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-publish:
+    name: Build Android App Bundle and Publish
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout codebase
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Set up Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # 3. Install NPM dependencies
+      - name: Install Dependencies
+        run: npm ci
+
+      # 4. Export Web App Static Assets for Capacitor
+      - name: Build and Export Web App
+        env:
+          CAPACITOR_BUILD: 'true'
+        run: npm run build
+
+      # 5. Sync Web Assets to Android Platform
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      # 6. Set up Java JDK (Required for Gradle / Android compile)
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # 7. Setup Android SDK
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 8. Build Android Release Bundle (.aab)
+      - name: Build Release App Bundle (.aab)
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease
+
+      # 9. Sign the Release App Bundle (.aab)
+      # Securely signs your app using secrets set up in GitHub Settings
+      - name: Sign App Bundle
+        id: sign_app
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: android/app/build/outputs/bundle/release
+          signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
+          alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      # 10. Upload App Bundle to Google Play Console
+      # Deploys signed .aab to Google Play internal testing track
+      - name: Upload to Google Play Console
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
+          packageName: com.advocacy.app
+          releaseFiles: ${{ steps.sign_app.outputs.signedReleaseFile }}
+          track: internal
+          status: completed

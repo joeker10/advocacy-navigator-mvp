@@ -1,7 +1,186 @@
 "use client";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { getUIPreference, setUIPreference } from "@/lib/storage";
-import { cacheVerifiedDocument, saveInsight, saveDocumentEmbedding, getDocumentEmbeddings, cosineSimilarity } from "@/lib/indexeddb";
+import { cacheVerifiedDocument, getOfflineDocuments, saveInsight, saveDocumentEmbedding, getDocumentEmbeddings, cosineSimilarity } from "@/lib/indexeddb";
+interface FilePreviewProps {
+  file: File;
+}
+
+function FilePreview({ file }: FilePreviewProps) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    setObjectUrl(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [file]);
+
+  if (!objectUrl) return null;
+
+  const isAudio = file.type.startsWith('audio/');
+  const isImage = file.type.startsWith('image/');
+  const isPdf = file.type === 'application/pdf';
+  const isWordDoc = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx');
+  const isOdtDoc = file.type === 'application/vnd.oasis.opendocument.text' || file.name.endsWith('.odt');
+
+  let fileIcon = "📄";
+  if (isAudio) fileIcon = "🎙️";
+  else if (isImage) fileIcon = "🖼️";
+  else if (isPdf) fileIcon = "📄";
+  else if (isWordDoc || isOdtDoc) fileIcon = "📝";
+
+  return (
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: "0.5rem",
+      padding: "0.75rem 1rem",
+      borderRadius: "12px",
+      background: "rgba(255, 255, 255, 0.03)",
+      border: "1px solid var(--glass-border)",
+      marginTop: "0.5rem",
+      width: "100%"
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
+        <span style={{ fontSize: "0.9rem", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: 0.9 }}>
+          {fileIcon} {file.name}
+        </span>
+        
+        <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+          {isAudio && (
+            <button
+              type="button"
+              onClick={() => setIsOpen(!isOpen)}
+              style={{
+                padding: "4px 12px",
+                borderRadius: "12px",
+                background: "var(--primary-glow)",
+                border: "1px solid var(--primary)",
+                color: "var(--primary)",
+                fontWeight: 600,
+                fontSize: "0.8rem",
+                cursor: "pointer",
+                transition: "all 0.2s"
+              }}
+            >
+              {isOpen ? "Hide Player" : "Listen"}
+            </button>
+          )}
+
+          {isImage && (
+            <>
+              <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                style={{
+                  padding: "4px 12px",
+                  borderRadius: "12px",
+                  background: "var(--primary-glow)",
+                  border: "1px solid var(--primary)",
+                  color: "var(--primary)",
+                  fontWeight: 600,
+                  fontSize: "0.8rem",
+                  cursor: "pointer",
+                  transition: "all 0.2s"
+                }}
+              >
+                {isOpen ? "Close Preview" : "View Image"}
+              </button>
+              <a
+                href={objectUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  padding: "4px 12px",
+                  borderRadius: "12px",
+                  background: "var(--surface)",
+                  border: "1px solid var(--glass-border)",
+                  color: "var(--foreground)",
+                  fontWeight: 600,
+                  fontSize: "0.8rem",
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center"
+                }}
+              >
+                Open ↗
+              </a>
+            </>
+          )}
+
+          {isPdf && (
+            <a
+              href={objectUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                padding: "4px 12px",
+                borderRadius: "12px",
+                background: "var(--primary-glow)",
+                border: "1px solid var(--primary)",
+                color: "var(--primary)",
+                fontWeight: 600,
+                fontSize: "0.8rem",
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center"
+              }}
+            >
+              View PDF ↗
+            </a>
+          )}
+
+          {(isWordDoc || isOdtDoc) && (
+            <a
+              href={objectUrl}
+              download={file.name}
+              style={{
+                padding: "4px 12px",
+                borderRadius: "12px",
+                background: "var(--primary-glow)",
+                border: "1px solid var(--primary)",
+                color: "var(--primary)",
+                fontWeight: 600,
+                fontSize: "0.8rem",
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center"
+              }}
+            >
+              Download ⬇️
+            </a>
+          )}
+        </div>
+      </div>
+
+      {isOpen && isAudio && (
+        <div style={{ marginTop: "0.5rem", display: "flex", justifyContent: "center" }} className="animate-slide-up">
+          <audio controls src={objectUrl} style={{ width: "100%", borderRadius: "8px", outline: "none" }} />
+        </div>
+      )}
+
+      {isOpen && isImage && (
+        <div style={{ marginTop: "0.5rem", textAlign: "center" }} className="animate-slide-up">
+          <img
+            src={objectUrl}
+            alt={file.name}
+            style={{
+              maxWidth: "100%",
+              maxHeight: "300px",
+              borderRadius: "8px",
+              border: "1px solid var(--glass-border)",
+              objectFit: "contain",
+              boxShadow: "var(--shadow-sm)"
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Home() {
   const [isDragActive, setIsDragActive] = useState(false);
@@ -21,6 +200,18 @@ export default function Home() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Camera Capture States
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [cameraAspectRatio, setCameraAspectRatio] = useState<"letter" | "legal">("letter");
+
+  // Document Editing & Correction States
+  const [editingDocIdx, setEditingDocIdx] = useState<number | null>(null);
+  const [editFormData, setEditFormData] = useState<any | null>(null);
+  const [expandedTranscripts, setExpandedTranscripts] = useState<Record<number, boolean>>({});
 
   // Phase 13 Auth & Subscription States
   const [token, setToken] = useState<string | null>(null);
@@ -39,6 +230,9 @@ export default function Home() {
   const [familySuccess, setFamilySuccess] = useState("");
   const [familyError, setFamilyError] = useState("");
   const [appPromptCount, setAppPromptCount] = useState(0);
+  const [show2FAInput, setShow2FAInput] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [temp2FAToken, setTemp2FAToken] = useState("");
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -99,6 +293,45 @@ export default function Home() {
         body: JSON.stringify({ email: authEmail, password: authPassword })
       });
       const data = await res.json();
+      if (data.success) {
+        if (data.twoFactorRequired) {
+          setTemp2FAToken(data.tempToken);
+          setShow2FAInput(true);
+          setAuthError("");
+        } else if (data.token) {
+          localStorage.setItem("spednav_auth_token", data.token);
+          setToken(data.token);
+          setUser(data.user);
+          setIsAuthenticated(true);
+          setAuthEmail("");
+          setAuthPassword("");
+          setShow2FAInput(false);
+          setTwoFactorCode("");
+        } else {
+          setAuthError("Authentication failed: invalid token response.");
+        }
+      } else {
+        setAuthError(data.error || "Authentication failed.");
+      }
+    } catch (err) {
+      setAuthError("Failed to connect to authentication server.");
+    }
+  };
+
+  const handle2FAVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    if (!twoFactorCode || twoFactorCode.length !== 6) {
+      setAuthError("Please enter a valid 6-digit code.");
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/api/auth/verify-2fa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tempToken: temp2FAToken, code: twoFactorCode })
+      });
+      const data = await res.json();
       if (data.success && data.token) {
         localStorage.setItem("spednav_auth_token", data.token);
         setToken(data.token);
@@ -106,11 +339,13 @@ export default function Home() {
         setIsAuthenticated(true);
         setAuthEmail("");
         setAuthPassword("");
+        setShow2FAInput(false);
+        setTwoFactorCode("");
       } else {
-        setAuthError(data.error || "Authentication failed.");
+        setAuthError(data.error || "Invalid 2FA verification code.");
       }
     } catch (err) {
-      setAuthError("Failed to connect to authentication server.");
+      setAuthError("Failed to connect to verification server.");
     }
   };
 
@@ -123,6 +358,9 @@ export default function Home() {
     setMessages([]);
     setExtractedDocuments([]);
     setAppPromptCount(0);
+    setShow2FAInput(false);
+    setTwoFactorCode("");
+    setTemp2FAToken("");
   };
 
   const handleRedeemCoupon = async (e: React.FormEvent) => {
@@ -256,6 +494,11 @@ export default function Home() {
           .map(c => c.chunk);
       }
 
+      // Strip files key from extractedDocuments context for serialization
+      const serializableContext = extractedDocuments.length > 0
+        ? extractedDocuments.map(({ files, ...rest }) => rest)
+        : null;
+
       // 4. Send query + vectors to the primary Chat Synthesis API
       const res = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
@@ -263,7 +506,7 @@ export default function Home() {
         body: JSON.stringify({
           query: userMsg,
           history: messages,
-          context: extractedDocuments.length > 0 ? extractedDocuments : null, // Legacy Golden Truth array
+          context: serializableContext, // Legacy Golden Truth array
           rag_chunks: ragChunks // Newly retrieved precise Multimodal evidence
         })
       });
@@ -357,10 +600,18 @@ export default function Home() {
     if (files.length === 0) return;
     
     // Validate: Block mixing audio and visual media
+    const isDocOrImage = (f: File) => 
+      f.type.startsWith('image/') || 
+      f.type === 'application/pdf' || 
+      f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
+      f.type === 'application/vnd.oasis.opendocument.text' || 
+      f.name.endsWith('.docx') || 
+      f.name.endsWith('.odt');
+
     const incomingHasAudio = files.some(f => f.type.startsWith('audio/'));
-    const incomingHasVisual = files.some(f => f.type.startsWith('image/') || f.type === 'application/pdf');
+    const incomingHasVisual = files.some(isDocOrImage);
     const existingHasAudio = stagedFiles.some(f => f.type.startsWith('audio/'));
-    const existingHasVisual = stagedFiles.some(f => f.type.startsWith('image/') || f.type === 'application/pdf');
+    const existingHasVisual = stagedFiles.some(isDocOrImage);
 
     if ((incomingHasAudio && existingHasVisual) || (incomingHasVisual && existingHasAudio) || (incomingHasAudio && incomingHasVisual)) {
       alert("Validation Error: Please do not mix audio recordings with document photos/PDFs. Process them in separate batches.");
@@ -421,7 +672,7 @@ export default function Home() {
         if (data.vector && data.vector.length > 0) {
           await saveDocumentEmbedding(data.documentId, data.vector, data.text_chunk, 1);
         }
-        setExtractedDocuments(prev => [...prev, { fileName: data.fileName, ...data.extractedData }]);
+        setExtractedDocuments(prev => [...prev, { fileName: data.fileName, files: [...stagedFiles], ...data.extractedData }]);
         setStagedFiles([]); // Clear queue on success
       } else {
         alert(`Batch Analysis failed: ` + (data.error || 'Unknown error'));
@@ -460,9 +711,10 @@ export default function Home() {
     }
   }, []);
 
-  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       handleFiles(Array.from(e.target.files));
+      e.target.value = "";
     }
   };
 
@@ -501,6 +753,137 @@ export default function Home() {
     }
   };
 
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      setCameraStream(stream);
+      setIsCameraOpen(true);
+    } catch (err) {
+      console.error("Camera access error:", err);
+      alert("Could not access camera. Please ensure camera permissions are enabled in your browser settings.");
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setIsCameraOpen(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current) {
+      const video = videoRef.current;
+      const targetRatio = cameraAspectRatio === "letter" ? 8.5 / 11 : 9 / 16;
+      const nativeWidth = video.videoWidth || 640;
+      const nativeHeight = video.videoHeight || 480;
+      const nativeRatio = nativeWidth / nativeHeight;
+
+      let sx = 0;
+      let sy = 0;
+      let sWidth = nativeWidth;
+      let sHeight = nativeHeight;
+
+      if (nativeRatio > targetRatio) {
+        // Source is wider than the target aspect ratio, crop sides
+        sWidth = nativeHeight * targetRatio;
+        sx = (nativeWidth - sWidth) / 2;
+      } else {
+        // Source is taller than the target aspect ratio, crop top/bottom
+        sHeight = nativeWidth / targetRatio;
+        sy = (nativeHeight - sHeight) / 2;
+      }
+
+      const canvas = document.createElement('canvas');
+      if (cameraAspectRatio === "letter") {
+        canvas.width = 850;
+        canvas.height = 1100;
+      } else {
+        canvas.width = 720;
+        canvas.height = 1280;
+      }
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const file = new File([blob], `Camera_Capture_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            handleFiles([file]);
+          }
+        }, 'image/jpeg', 0.85);
+      }
+      stopCamera();
+    }
+  };
+
+  useEffect(() => {
+    if (isCameraOpen && videoRef.current && cameraStream) {
+      videoRef.current.srcObject = cameraStream;
+    }
+  }, [isCameraOpen, cameraStream]);
+
+  const toggleTranscript = (idx: number) => {
+    setExpandedTranscripts(prev => ({
+      ...prev,
+      [idx]: !prev[idx]
+    }));
+  };
+
+  const startEditingDoc = (idx: number, doc: any) => {
+    setEditingDocIdx(idx);
+    setEditFormData({ ...doc });
+  };
+
+  const handleEditFormChange = (key: string, value: string) => {
+    setEditFormData((prev: any) => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const saveDocumentEdits = async (idx: number) => {
+    if (!editFormData) return;
+    
+    const updatedDocs = [...extractedDocuments];
+    updatedDocs[idx] = { ...editFormData };
+    
+    setExtractedDocuments(updatedDocs);
+    setEditingDocIdx(null);
+    setEditFormData(null);
+
+    try {
+      const allOffline = await getOfflineDocuments();
+      const matchedOffline = allOffline.find((d: any) => d.fileName === editFormData.fileName);
+      const docId = matchedOffline ? matchedOffline.id : crypto.randomUUID();
+      
+      const { files, ...dbData } = editFormData;
+      
+      await cacheVerifiedDocument({
+        id: docId,
+        fileName: editFormData.fileName,
+        extractedData: dbData
+      });
+
+      const textChunk = `Document: ${editFormData.fileName}\n${JSON.stringify(dbData)}`;
+      const embedRes = await fetch(`${API_URL}/api/embed`, {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: textChunk })
+      });
+      const embedData = await embedRes.json();
+      if (embedData.success && embedData.vector) {
+        await saveDocumentEmbedding(docId, embedData.vector, textChunk, 1);
+      }
+      alert("Document corrections saved and vector search synchronized successfully!");
+    } catch (err) {
+      console.error("Failed to save data corrections:", err);
+      alert("Edits updated in memory, but offline cache sync failed.");
+    }
+  };
+
   // Loading indicator for session restore
   if (authLoading) {
     return (
@@ -523,53 +906,94 @@ export default function Home() {
             />
             <h2 style={{ fontSize: "1.75rem", fontWeight: 850 }}>SpEd Navigator</h2>
             <p style={{ opacity: 0.7, fontSize: "0.9rem", marginTop: "0.25rem" }}>
-              {isAuthModeLogin ? "Sign in to access your child's advocate portal" : "Create your private zero-trust advocate account"}
+              {show2FAInput ? "Two-Factor Verification Required" : isAuthModeLogin ? "Sign in to access your child's advocate portal" : "Create your private zero-trust advocate account"}
             </p>
           </div>
 
-          <form onSubmit={handleAuthSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <div>
-              <label htmlFor="auth-email" style={{ display: "block", fontSize: "0.8rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Email Address</label>
-              <input 
-                id="auth-email"
-                type="email" 
-                value={authEmail} 
-                onChange={e => setAuthEmail(e.target.value)} 
-                required
-                style={{ width: "100%", padding: "0.75rem 1rem", borderRadius: "12px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }} 
-              />
-            </div>
-            
-            <div>
-              <label htmlFor="auth-password" style={{ display: "block", fontSize: "0.8rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Password</label>
-              <input 
-                id="auth-password"
-                type="password" 
-                value={authPassword} 
-                onChange={e => setAuthPassword(e.target.value)} 
-                required
-                style={{ width: "100%", padding: "0.75rem 1rem", borderRadius: "12px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }} 
-              />
-            </div>
+          {show2FAInput ? (
+            <form onSubmit={handle2FAVerify} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              <div>
+                <p style={{ fontSize: "0.9rem", opacity: 0.8, marginBottom: "1rem", textTransform: "none", textAlign: "center" }}>
+                  A 6-digit verification code has been sent to your email. Enter the code below to sign in.
+                </p>
+                <label htmlFor="auth-2fa-code" style={{ display: "block", fontSize: "0.8rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8, textAlign: "center" }}>Verification Code</label>
+                <input 
+                  id="auth-2fa-code"
+                  type="text" 
+                  maxLength={6}
+                  placeholder="123456"
+                  value={twoFactorCode} 
+                  onChange={e => setTwoFactorCode(e.target.value.replace(/\D/g, ''))} 
+                  required
+                  style={{ width: "100%", padding: "0.75rem 1rem", borderRadius: "12px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", fontSize: "1.5rem", letterSpacing: "8px", textAlign: "center" }} 
+                />
+              </div>
 
-            {authError && (
-              <p style={{ color: "hsl(0, 80%, 50%)", fontSize: "0.85rem", fontWeight: 600 }}>{authError}</p>
-            )}
+              {authError && (
+                <p style={{ color: "hsl(0, 80%, 50%)", fontSize: "0.85rem", fontWeight: 600, textAlign: "center" }}>{authError}</p>
+              )}
 
-            <button 
-              type="submit" 
-              style={{ width: "100%", padding: "0.85rem", borderRadius: "12px", background: "var(--primary)", color: "white", fontWeight: 700, border: "none", cursor: "pointer", marginTop: "1rem", boxShadow: "0 4px 12px var(--primary-glow)" }}
-            >
-              {isAuthModeLogin ? "Sign In" : "Register Account"}
-            </button>
-          </form>
+              <button 
+                type="submit" 
+                style={{ width: "100%", padding: "0.85rem", borderRadius: "12px", background: "var(--primary)", color: "white", fontWeight: 700, border: "none", cursor: "pointer", boxShadow: "0 4px 12px var(--primary-glow)" }}
+              >
+                Verify & Sign In
+              </button>
+
+              <button 
+                type="button" 
+                onClick={() => { setShow2FAInput(false); setTwoFactorCode(""); setAuthError(""); }} 
+                style={{ background: "transparent", border: "none", color: "var(--foreground)", opacity: 0.6, fontWeight: 600, cursor: "pointer", fontSize: "0.9rem", alignSelf: "center" }}
+              >
+                ← Back to Sign In
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleAuthSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div>
+                <label htmlFor="auth-email" style={{ display: "block", fontSize: "0.8rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Email Address</label>
+                <input 
+                  id="auth-email"
+                  type="email" 
+                  value={authEmail} 
+                  onChange={e => setAuthEmail(e.target.value)} 
+                  required
+                  style={{ width: "100%", padding: "0.75rem 1rem", borderRadius: "12px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }} 
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="auth-password" style={{ display: "block", fontSize: "0.8rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Password</label>
+                <input 
+                  id="auth-password"
+                  type="password" 
+                  value={authPassword} 
+                  onChange={e => setAuthPassword(e.target.value)} 
+                  required
+                  style={{ width: "100%", padding: "0.75rem 1rem", borderRadius: "12px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }} 
+                />
+              </div>
+
+              {authError && (
+                <p style={{ color: "hsl(0, 80%, 50%)", fontSize: "0.85rem", fontWeight: 600 }}>{authError}</p>
+              )}
+
+              <button 
+                type="submit" 
+                style={{ width: "100%", padding: "0.85rem", borderRadius: "12px", background: "var(--primary)", color: "white", fontWeight: 700, border: "none", cursor: "pointer", marginTop: "1rem", boxShadow: "0 4px 12px var(--primary-glow)" }}
+              >
+                {isAuthModeLogin ? "Sign In" : "Register Account"}
+              </button>
+            </form>
+          )}
 
           <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
             <button 
+              disabled={show2FAInput}
               onClick={() => { setIsAuthModeLogin(!isAuthModeLogin); setAuthError(""); }} 
-              style={{ background: "transparent", border: "none", color: "var(--primary)", fontWeight: 600, cursor: "pointer", fontSize: "0.9rem" }}
+              style={{ background: "transparent", border: "none", color: "var(--primary)", fontWeight: 600, cursor: "pointer", fontSize: "0.9rem", opacity: show2FAInput ? 0.5 : 1 }}
             >
-              {isAuthModeLogin ? "Need an account? Register" : "Already have an account? Login"}
+              {isAuthModeLogin ? "Create an Account" : "Already have an account? Sign In"}
             </button>
           </div>
         </div>
@@ -582,7 +1006,7 @@ export default function Home() {
       {/* Top Navbar */}
       <nav style={{ 
         position: "sticky", top: 0, zIndex: 50,
-        background: "rgba(15, 23, 42, 0.8)",
+        background: "var(--nav-bg)",
         backdropFilter: "blur(16px)",
         WebkitBackdropFilter: "blur(16px)",
         borderBottom: "1px solid var(--glass-border)",
@@ -612,6 +1036,9 @@ export default function Home() {
               </a>
               <a href="/downloads" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
                 Downloads
+              </a>
+              <a href="/videos" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
+                Videos
               </a>
             </div>
           </div>
@@ -729,6 +1156,42 @@ export default function Home() {
               </div>
             )}
 
+            {/* Security Settings Section (2FA Toggle) */}
+            <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>Security Settings</h3>
+              <p style={{ fontSize: "0.85rem", opacity: 0.7, marginBottom: "1rem" }}>Enhance your account safety by enabling 2-Factor Authentication (Email OTP).</p>
+              
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--glass-border)", borderRadius: "8px" }}>
+                <span style={{ fontSize: "0.95rem", fontWeight: 600 }}>Enable 2FA (Email OTP)</span>
+                <input 
+                  type="checkbox"
+                  checked={!!user?.twoFactorEnabled}
+                  onChange={async (e) => {
+                    const enabled = e.target.checked;
+                    try {
+                      const res = await fetch(`${API_URL}/api/auth/toggle-2fa`, {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          "Authorization": `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ enabled })
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        setUser((prev: any) => ({ ...prev, twoFactorEnabled: data.twoFactorEnabled }));
+                      } else {
+                        alert(data.error || "Failed to update 2FA settings.");
+                      }
+                    } catch (err) {
+                      alert("Network error updating 2FA settings.");
+                    }
+                  }}
+                  style={{ width: "20px", height: "20px", cursor: "pointer", accentColor: "var(--primary)" }}
+                />
+              </div>
+            </div>
+
             <button 
               onClick={handleLogout}
               style={{ width: "100%", padding: "0.8rem", borderRadius: "12px", background: "hsla(0, 80%, 50%, 0.1)", border: "1px solid hsla(0, 80%, 50%, 0.3)", color: "hsl(0, 80%, 60%)", fontWeight: 700, cursor: "pointer", marginTop: "2rem" }}
@@ -784,12 +1247,13 @@ export default function Home() {
               onDragOver={user?.subscriptionStatus === 'SUBSCRIBED' ? onDragOver : undefined}
               onDragLeave={user?.subscriptionStatus === 'SUBSCRIBED' ? onDragLeave : undefined}
               onDrop={user?.subscriptionStatus === 'SUBSCRIBED' ? onDrop : undefined}
+              onClick={user?.subscriptionStatus === 'SUBSCRIBED' ? () => fileInputRef.current?.click() : undefined}
             >
               {/* Free Tier Upload Lock Overlay */}
               {user?.subscriptionStatus !== 'SUBSCRIBED' && (
                 <div style={{
                   position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-                  background: "rgba(15, 23, 42, 0.8)", backdropFilter: "blur(12px)",
+                  background: "var(--nav-bg)", backdropFilter: "blur(12px)",
                   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                   padding: "2rem", zIndex: 20
                 }}>
@@ -854,20 +1318,12 @@ export default function Home() {
 
           {/* Media Capture Controls */}
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
-            <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
-              <input 
-                type="file" 
-                accept="image/*" 
-                capture="environment" 
-                ref={cameraInputRef} 
-                style={{ display: "none" }} 
-                onChange={handleCameraCapture} 
-              />
+            <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap", alignItems: "flex-start" }}>
               <button 
-                onClick={() => cameraInputRef.current?.click()}
+                onClick={startCamera}
                 disabled={isUploading || user?.subscriptionStatus !== 'SUBSCRIBED'}
                 style={{
-                  flex: 1, padding: "1rem", borderRadius: "16px",
+                  flex: "1 1 180px", padding: "1rem", borderRadius: "16px",
                   background: "var(--surface)", border: "1px solid var(--border)",
                   color: "var(--foreground)", fontSize: "1rem", fontWeight: 600,
                   cursor: (isUploading || user?.subscriptionStatus !== 'SUBSCRIBED') ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
@@ -878,11 +1334,39 @@ export default function Home() {
                 📸 Take Photo
               </button>
 
+              <div style={{ flex: "1 1 180px", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <input 
+                  type="file" 
+                  multiple
+                  accept="image/*,application/pdf,audio/*,.docx,.odt,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text" 
+                  ref={fileInputRef} 
+                  style={{ display: "none" }} 
+                  onChange={handleFileInputChange} 
+                />
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading || user?.subscriptionStatus !== 'SUBSCRIBED'}
+                  style={{
+                    width: "100%", padding: "1rem", borderRadius: "16px",
+                    background: "var(--surface)", border: "1px solid var(--border)",
+                    color: "var(--foreground)", fontSize: "1rem", fontWeight: 600,
+                    cursor: (isUploading || user?.subscriptionStatus !== 'SUBSCRIBED') ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                    transition: "all 0.2s",
+                    opacity: user?.subscriptionStatus !== 'SUBSCRIBED' ? 0.5 : 1
+                  }}
+                >
+                  📤 Upload Files
+                </button>
+                <span style={{ fontSize: "0.75rem", opacity: 0.6, textAlign: "center" }}>
+                  PDF, DOCX, ODT, JPEG, PNG, WEBP, MP3, WAV, WebM
+                </span>
+              </div>
+
               <button 
                 onClick={isRecording ? stopRecording : startRecording}
                 disabled={(isUploading && !isRecording) || user?.subscriptionStatus !== 'SUBSCRIBED'}
                 style={{
-                  flex: 1, padding: "1rem", borderRadius: "16px",
+                  flex: "1 1 180px", padding: "1rem", borderRadius: "16px",
                   background: isRecording ? "hsl(0, 80%, 50%)" : "var(--surface)", 
                   border: isRecording ? "none" : "1px solid var(--border)",
                   color: isRecording ? "white" : "var(--foreground)", 
@@ -913,17 +1397,20 @@ export default function Home() {
                   <span style={{ background: "var(--primary-glow)", color: "var(--primary)", padding: "0.2rem 0.6rem", borderRadius: "12px", fontSize: "0.9rem" }}>{stagedFiles.length}</span>
                   Documents Staged for Batch Processing
                 </h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.5rem" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1.5rem" }}>
                   {stagedFiles.map((file, idx) => (
-                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem 1rem", background: "var(--background)", border: "1px solid var(--glass-border)", borderRadius: "8px", boxShadow: "var(--shadow-sm)" }}>
-                      <span style={{ fontSize: "0.95rem", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                        <span style={{ opacity: 0.5, marginRight: "0.5rem" }}>{idx + 1}.</span> {file.name}
-                      </span>
-                      <div style={{ display: "flex", gap: "0.25rem" }}>
-                        <button onClick={() => moveStagedFile(idx, -1)} disabled={idx === 0 || isUploading} style={{ padding: "0.25rem", borderRadius: "4px", background: "var(--surface)", border: "1px solid var(--border)", cursor: idx === 0 || isUploading ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.3 : 1 }}>⬆️</button>
-                        <button onClick={() => moveStagedFile(idx, 1)} disabled={idx === stagedFiles.length - 1 || isUploading} style={{ padding: "0.25rem", borderRadius: "4px", background: "var(--surface)", border: "1px solid var(--border)", cursor: idx === stagedFiles.length - 1 || isUploading ? "not-allowed" : "pointer", opacity: idx === stagedFiles.length - 1 ? 0.3 : 1 }}>⬇️</button>
-                        <button onClick={() => removeStagedFile(idx)} disabled={isUploading} style={{ padding: "0.25rem", borderRadius: "4px", background: "hsla(0, 80%, 50%, 0.1)", border: "1px solid hsla(0, 80%, 50%, 0.3)", cursor: isUploading ? "not-allowed" : "pointer" }}>❌</button>
+                    <div key={idx} style={{ display: "flex", flexDirection: "column", padding: "1rem", background: "var(--background)", border: "1px solid var(--glass-border)", borderRadius: "12px", boxShadow: "var(--shadow-sm)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "0.95rem", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, marginRight: "1rem" }}>
+                          <span style={{ opacity: 0.5, marginRight: "0.5rem" }}>{idx + 1}.</span> {file.name}
+                        </span>
+                        <div style={{ display: "flex", gap: "0.25rem", flexShrink: 0 }}>
+                          <button onClick={() => moveStagedFile(idx, -1)} disabled={idx === 0 || isUploading} style={{ padding: "0.25rem", borderRadius: "4px", background: "var(--surface)", border: "1px solid var(--border)", cursor: idx === 0 || isUploading ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.3 : 1 }}>⬆️</button>
+                          <button onClick={() => moveStagedFile(idx, 1)} disabled={idx === stagedFiles.length - 1 || isUploading} style={{ padding: "0.25rem", borderRadius: "4px", background: "var(--surface)", border: "1px solid var(--border)", cursor: idx === stagedFiles.length - 1 || isUploading ? "not-allowed" : "pointer", opacity: idx === stagedFiles.length - 1 ? 0.3 : 1 }}>⬇️</button>
+                          <button onClick={() => removeStagedFile(idx)} disabled={isUploading} style={{ padding: "0.25rem", borderRadius: "4px", background: "hsla(0, 80%, 50%, 0.1)", border: "1px solid hsla(0, 80%, 50%, 0.3)", cursor: isUploading ? "not-allowed" : "pointer" }}>❌</button>
+                        </div>
                       </div>
+                      <FilePreview file={file} />
                     </div>
                   ))}
                 </div>
@@ -944,47 +1431,268 @@ export default function Home() {
             <div style={{ display: "flex", flexDirection: "column", gap: "2rem", maxHeight: "800px", overflowY: "auto", paddingRight: "1rem" }}>
               {extractedDocuments.map((doc, idx) => (
                 <div key={idx} className="glass-panel animate-slide-up" style={{ padding: "0" }}>
-                  <div style={{ padding: "1.5rem", borderBottom: "1px solid var(--glass-border)", background: "hsla(150, 70%, 40%, 0.05)" }}>
+                  <div style={{ padding: "1.5rem", borderBottom: "1px solid var(--glass-border)", background: "hsla(150, 70%, 40%, 0.05)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <h3 style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "1.1rem", fontWeight: 700, color: "var(--success)" }}>
                       <span style={{ display: "inline-block", width: "10px", height: "10px", background: "var(--success)", borderRadius: "50%", boxShadow: "0 0 10px var(--success)" }}></span>
                       {doc.fileName || "Golden Truth Mapped"}
                     </h3>
+                    {editingDocIdx !== idx && (
+                      <button
+                        type="button"
+                        onClick={() => startEditingDoc(idx, doc)}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: "12px",
+                          background: "var(--primary-glow)",
+                          border: "1px solid var(--primary)",
+                          color: "var(--primary)",
+                          fontWeight: 600,
+                          fontSize: "0.8rem",
+                          cursor: "pointer",
+                          transition: "all 0.2s"
+                        }}
+                      >
+                        ✏️ Edit Mapped Data
+                      </button>
+                    )}
                   </div>
                   
                   <div style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
-                    {doc.assessmentName && doc.assessmentName !== "Unknown" && (
-                      <div className="animate-slide-up animate-delay-1" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
-                        <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--primary)", marginBottom: "0.25rem", fontWeight: 700 }}>Assessment Overview</h4>
-                        <p style={{ fontSize: "0.85rem", fontWeight: 500 }}><strong>Name:</strong> {doc.assessmentName} | <strong>Version:</strong> {doc.assessmentVersion}</p>
+                    {/* Source File Previews */}
+                    {doc.files && doc.files.length > 0 && (
+                      <div style={{ marginBottom: "0.5rem" }} className="animate-slide-up">
+                        <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--primary)", marginBottom: "0.5rem", fontWeight: 700, opacity: 0.8 }}>Source Media (Active Session)</h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                          {doc.files.map((file: File, fIdx: number) => (
+                            <FilePreview key={fIdx} file={file} />
+                          ))}
+                        </div>
                       </div>
                     )}
 
-                    {doc.behavioralInfo && doc.behavioralInfo !== "Error decoding" && (
-                      <div className="animate-slide-up animate-delay-2" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
-                        <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--secondary)", marginBottom: "0.25rem", fontWeight: 700 }}>Behavioral Info</h4>
-                        <p style={{ fontSize: "0.85rem", fontWeight: 500 }}>{doc.behavioralInfo}</p>
+                    {editingDocIdx === idx && editFormData ? (
+                      /* Edit Mode Form fields */
+                      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }} className="animate-slide-up">
+                        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                          <div style={{ flex: 2, minWidth: "200px" }}>
+                            <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Assessment Name</label>
+                            <input
+                              type="text"
+                              value={editFormData.assessmentName || ''}
+                              onChange={e => handleEditFormChange('assessmentName', e.target.value)}
+                              style={{ width: "100%", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }}
+                            />
+                          </div>
+                          <div style={{ flex: 1, minWidth: "100px" }}>
+                            <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Version</label>
+                            <input
+                              type="text"
+                              value={editFormData.assessmentVersion || ''}
+                              onChange={e => handleEditFormChange('assessmentVersion', e.target.value)}
+                              style={{ width: "100%", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }}
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Behavioral Info</label>
+                          <textarea
+                            value={editFormData.behavioralInfo || ''}
+                            onChange={e => handleEditFormChange('behavioralInfo', e.target.value)}
+                            rows={3}
+                            style={{ width: "100%", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", resize: "vertical" }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Identified Strengths</label>
+                          <textarea
+                            value={editFormData.strengths || ''}
+                            onChange={e => handleEditFormChange('strengths', e.target.value)}
+                            rows={3}
+                            style={{ width: "100%", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", resize: "vertical" }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Core Needs & Deficits</label>
+                          <textarea
+                            value={editFormData.needs || ''}
+                            onChange={e => handleEditFormChange('needs', e.target.value)}
+                            rows={3}
+                            style={{ width: "100%", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", resize: "vertical" }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Key Takeaways</label>
+                          <textarea
+                            value={editFormData.takeaways || ''}
+                            onChange={e => handleEditFormChange('takeaways', e.target.value)}
+                            rows={3}
+                            style={{ width: "100%", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", resize: "vertical" }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Accommodations</label>
+                          <textarea
+                            value={editFormData.accommodations || ''}
+                            onChange={e => handleEditFormChange('accommodations', e.target.value)}
+                            rows={3}
+                            style={{ width: "100%", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", resize: "vertical" }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Uncertainties / Ambiguities</label>
+                          <textarea
+                            value={editFormData.uncertainties || ''}
+                            onChange={e => handleEditFormChange('uncertainties', e.target.value)}
+                            rows={2}
+                            style={{ width: "100%", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", resize: "vertical" }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Raw AI Interpretation Transcript</label>
+                          <textarea
+                            value={editFormData.rawTranscript || ''}
+                            onChange={e => handleEditFormChange('rawTranscript', e.target.value)}
+                            rows={4}
+                            style={{ width: "100%", padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", resize: "vertical", fontFamily: "monospace", fontSize: "0.85rem" }}
+                          />
+                        </div>
+
+                        <div style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
+                          <button
+                            type="button"
+                            onClick={() => saveDocumentEdits(idx)}
+                            style={{
+                              flex: 1, padding: "0.75rem", borderRadius: "12px",
+                              background: "var(--success)", border: "none", color: "white",
+                              fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center",
+                              justifyContent: "center", gap: "0.5rem", boxShadow: "0 4px 12px var(--success-glow)"
+                            }}
+                          >
+                            💾 Save Corrections
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setEditingDocIdx(null); setEditFormData(null); }}
+                            style={{
+                              padding: "0.75rem 1.5rem", borderRadius: "12px",
+                              background: "var(--surface)", border: "1px solid var(--border)",
+                              color: "var(--foreground)", fontWeight: 650, cursor: "pointer"
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
+                    ) : (
+                      /* View Mode */
+                      <>
+                        {doc.uncertainties && doc.uncertainties.toLowerCase() !== 'none' && (
+                          <div style={{
+                            padding: "1rem",
+                            borderRadius: "12px",
+                            background: "hsla(35, 100%, 50%, 0.1)",
+                            border: "1px solid hsla(35, 100%, 50%, 0.3)",
+                            color: "hsl(35, 100%, 45%)",
+                            fontSize: "0.875rem",
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: "0.75rem",
+                            marginBottom: "0.5rem"
+                          }} className="animate-slide-up">
+                            <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>⚠️</span>
+                            <div>
+                              <strong style={{ display: "block", marginBottom: "0.25rem" }}>AI Uncertainty / Ambiguity Note</strong>
+                              <span style={{ opacity: 0.9 }}>{doc.uncertainties}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {doc.assessmentName && doc.assessmentName !== "Unknown" && (
+                          <div className="animate-slide-up animate-delay-1" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
+                            <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--primary)", marginBottom: "0.25rem", fontWeight: 700 }}>Assessment Overview</h4>
+                            <p style={{ fontSize: "0.85rem", fontWeight: 500 }}><strong>Name:</strong> {doc.assessmentName} | <strong>Version:</strong> {doc.assessmentVersion}</p>
+                          </div>
+                        )}
+
+                        {doc.behavioralInfo && doc.behavioralInfo !== "Error decoding" && (
+                          <div className="animate-slide-up animate-delay-2" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
+                            <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--secondary)", marginBottom: "0.25rem", fontWeight: 700 }}>Behavioral Info</h4>
+                            <p style={{ fontSize: "0.85rem", fontWeight: 500 }}>{doc.behavioralInfo}</p>
+                          </div>
+                        )}
+
+                        <div className="animate-slide-up animate-delay-3" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
+                          <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--primary)", marginBottom: "0.25rem", fontWeight: 700 }}>Identified Strengths</h4>
+                          <p style={{ fontSize: "0.85rem", fontWeight: 500 }}>{doc.strengths}</p>
+                        </div>
+                        
+                        <div className="animate-slide-up animate-delay-4" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
+                          <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--secondary)", marginBottom: "0.25rem", fontWeight: 700 }}>Core Needs & Deficits</h4>
+                          <p style={{ fontSize: "0.85rem", fontWeight: 500 }}>{doc.needs}</p>
+                        </div>
+
+                        <div className="animate-slide-up animate-delay-5" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
+                          <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--warning)", marginBottom: "0.25rem", fontWeight: 700 }}>Key Takeaways</h4>
+                          <p style={{ fontSize: "0.85rem", fontWeight: 500 }}>{doc.takeaways}</p>
+                        </div>
+
+                        <div className="animate-slide-up animate-delay-6" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
+                          <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--success)", marginBottom: "0.25rem", fontWeight: 700 }}>Accommodations</h4>
+                          <p style={{ fontSize: "0.85rem", fontWeight: 500 }}>{doc.accommodations}</p>
+                        </div>
+
+                        {doc.rawTranscript && (
+                          <div className="animate-slide-up animate-delay-7" style={{ marginTop: "0.5rem" }}>
+                            <button
+                              type="button"
+                              onClick={() => toggleTranscript(idx)}
+                              style={{
+                                padding: "6px 12px",
+                                borderRadius: "12px",
+                                background: "var(--surface)",
+                                border: "1px solid var(--glass-border)",
+                                color: "var(--foreground)",
+                                fontWeight: 600,
+                                fontSize: "0.8rem",
+                                cursor: "pointer",
+                                transition: "all 0.2s",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.25rem"
+                              }}
+                            >
+                              {expandedTranscripts[idx] ? "🔽 Hide Raw AI Interpretation Transcript" : "▶️ Show Raw AI Interpretation Transcript"}
+                            </button>
+                            
+                            {expandedTranscripts[idx] && (
+                              <div style={{
+                                marginTop: "0.5rem",
+                                padding: "1rem",
+                                borderRadius: "12px",
+                                background: "var(--background)",
+                                border: "1px solid var(--border)",
+                                fontSize: "0.85rem",
+                                whiteSpace: "pre-wrap",
+                                maxHeight: "300px",
+                                overflowY: "auto",
+                                fontFamily: "monospace",
+                                color: "var(--foreground)",
+                                opacity: 0.9
+                              }} className="animate-slide-up">
+                                {doc.rawTranscript}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
                     )}
-
-                    <div className="animate-slide-up animate-delay-3" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
-                      <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--primary)", marginBottom: "0.25rem", fontWeight: 700 }}>Identified Strengths</h4>
-                      <p style={{ fontSize: "0.85rem", fontWeight: 500 }}>{doc.strengths}</p>
-                    </div>
-                    
-                    <div className="animate-slide-up animate-delay-4" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
-                      <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--secondary)", marginBottom: "0.25rem", fontWeight: 700 }}>Core Needs & Deficits</h4>
-                      <p style={{ fontSize: "0.85rem", fontWeight: 500 }}>{doc.needs}</p>
-                    </div>
-
-                    <div className="animate-slide-up animate-delay-5" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
-                      <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--warning)", marginBottom: "0.25rem", fontWeight: 700 }}>Key Takeaways</h4>
-                      <p style={{ fontSize: "0.85rem", fontWeight: 500 }}>{doc.takeaways}</p>
-                    </div>
-
-                    <div className="animate-slide-up animate-delay-6" style={{ padding: "1rem", borderRadius: "12px", background: "var(--background)", border: "1px solid var(--border)" }}>
-                      <h4 style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--success)", marginBottom: "0.25rem", fontWeight: 700 }}>Accommodations</h4>
-                      <p style={{ fontSize: "0.85rem", fontWeight: 500 }}>{doc.accommodations}</p>
-                    </div>
                   </div>
                 </div>
               ))}
@@ -1066,8 +1774,119 @@ export default function Home() {
       
       {/* Footer Nav */}
       <footer style={{ position: "absolute", bottom: "1rem", width: "100%", textAlign: "center", opacity: 0.6, fontSize: "0.875rem" }}>
-         <a href="/help" style={{ color: "var(--primary)", textDecoration: "underline", fontWeight: 600 }}>Access Resource Directory (SPIN/LDAH) &rarr;</a>
+         <a href="/help" style={{ color: "var(--primary)", textDecoration: "underline", fontWeight: 600 }}>Access Resource Directory (HDRC/LDAH) &rarr;</a>
       </footer>
+
+      {/* Camera Capture Modal Overlay */}
+      {isCameraOpen && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)",
+          zIndex: 200, display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", padding: "2rem"
+        }} onClick={stopCamera}>
+          <div className="glass-panel animate-slide-up" style={{
+            width: "100%", maxWidth: "640px", padding: "1.5rem",
+            display: "flex", flexDirection: "column", gap: "1.5rem",
+            background: "var(--surface)", border: "1px solid var(--glass-border)"
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ fontSize: "1.25rem", fontWeight: 700 }}>Live Camera Capture</h3>
+              <button 
+                onClick={stopCamera} 
+                style={{ background: "transparent", border: "none", fontSize: "1.5rem", color: "var(--foreground)", cursor: "pointer" }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "center", gap: "1rem" }}>
+              <button
+                type="button"
+                onClick={() => setCameraAspectRatio("letter")}
+                style={{
+                  padding: "6px 16px",
+                  borderRadius: "20px",
+                  background: cameraAspectRatio === "letter" ? "var(--primary)" : "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: cameraAspectRatio === "letter" ? "white" : "var(--foreground)",
+                  fontWeight: 600,
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                  transition: "all 0.2s"
+                }}
+              >
+                📄 Letter (8.5" x 11")
+              </button>
+              <button
+                type="button"
+                onClick={() => setCameraAspectRatio("legal")}
+                style={{
+                  padding: "6px 16px",
+                  borderRadius: "20px",
+                  background: cameraAspectRatio === "legal" ? "var(--primary)" : "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: cameraAspectRatio === "legal" ? "white" : "var(--foreground)",
+                  fontWeight: 600,
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                  transition: "all 0.2s"
+                }}
+              >
+                📋 Legal (9:16)
+              </button>
+            </div>
+
+            <div style={{
+              position: "relative",
+              width: "100%",
+              maxWidth: "360px",
+              margin: "0 auto",
+              aspectRatio: cameraAspectRatio === "letter" ? "8.5/11" : "9/16",
+              background: "#000",
+              borderRadius: "16px",
+              overflow: "hidden",
+              border: "1px solid var(--glass-border)",
+              transition: "aspect-ratio 0.3s ease"
+            }}>
+              <video 
+                ref={videoRef}
+                autoPlay 
+                playsInline 
+                muted 
+                style={{ width: "100%", height: "100%", objectFit: "cover" }} 
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "1rem" }}>
+              <button
+                onClick={capturePhoto}
+                style={{
+                  flex: 2, padding: "1rem", borderRadius: "12px",
+                  background: "var(--primary)", border: "none",
+                  color: "white", fontWeight: 700, fontSize: "1rem",
+                  cursor: "pointer", display: "flex", alignItems: "center",
+                  justifyContent: "center", gap: "0.5rem",
+                  boxShadow: "0 4px 12px var(--primary-glow)"
+                }}
+              >
+                📸 Capture Photo
+              </button>
+              <button
+                onClick={stopCamera}
+                style={{
+                  flex: 1, padding: "1rem", borderRadius: "12px",
+                  background: "var(--surface)", border: "1px solid var(--border)",
+                  color: "var(--foreground)", fontWeight: 650, fontSize: "1rem",
+                  cursor: "pointer"
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
