@@ -212,6 +212,7 @@ export default function Home() {
   const [editingDocIdx, setEditingDocIdx] = useState<number | null>(null);
   const [editFormData, setEditFormData] = useState<any | null>(null);
   const [expandedTranscripts, setExpandedTranscripts] = useState<Record<number, boolean>>({});
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Phase 13 Auth & Subscription States
   const [token, setToken] = useState<string | null>(null);
@@ -1013,21 +1014,35 @@ export default function Home() {
       }}>
         <div className="container" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "72px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+            {/* Hamburger menu button for mobile screens */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="mobile-menu-btn"
+              style={{
+                background: "transparent", border: "none", fontSize: "1.5rem", color: "var(--foreground)",
+                cursor: "pointer", display: "none", padding: "4px 8px"
+              }}
+              aria-label="Toggle Navigation Menu"
+            >
+              {isMobileMenuOpen ? "✕" : "☰"}
+            </button>
+
             <a href="/home" style={{ display: "flex", alignItems: "center", gap: "12px", textDecoration: "none", color: "var(--foreground)" }} aria-label="Special Education Navigator Home">
               <img 
                 src="/navigator-logo.jpg" 
                 alt="" 
+                className="nav-logo"
                 style={{ 
                   width: "40px", height: "40px", borderRadius: "50%", 
                   boxShadow: "0 4px 12px var(--primary-glow)", border: "1px solid var(--glass-border)", objectFit: "cover"
                 }} 
               />
-              <span style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.01em", color: "var(--foreground)" }}>
+              <span className="nav-title" style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.01em", color: "var(--foreground)" }}>
                 SpEd Navigator
               </span>
             </a>
             
-            <div style={{ display: "flex", gap: "16px", marginLeft: "12px" }} role="navigation" aria-label="Public Pages Menu">
+            <div style={{ display: "flex", gap: "16px", marginLeft: "12px" }} role="navigation" aria-label="Public Pages Menu" className="desktop-nav">
               <a href="/home" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
                 Home
               </a>
@@ -1043,15 +1058,16 @@ export default function Home() {
             </div>
           </div>
           <div style={{ display: "flex", gap: "12px" }}>
-            <a href="/saved" style={{
+            <a href="/saved" className="nav-btn-mobile-icon" style={{
               padding: "8px 16px", borderRadius: "20px", display: "flex", gap: "8px", alignItems: "center",
               background: "var(--primary-glow)", border: "1px solid var(--primary)", color: "var(--primary)",
               cursor: "pointer", fontWeight: 600, fontSize: "0.875rem", textDecoration: "none",
               boxShadow: "var(--shadow-sm)"
-            }}>⭐ Saved Insights</a>
+            }}>⭐ <span className="button-text">Saved Insights</span></a>
             
             <button 
               onClick={() => setShowSettings(true)}
+              className="nav-btn-mobile-icon"
               style={{
                 padding: "8px 16px", borderRadius: "20px", display: "flex", gap: "8px", alignItems: "center",
                 background: "var(--surface)", border: "1px solid var(--glass-border)", color: "var(--foreground)",
@@ -1059,11 +1075,12 @@ export default function Home() {
                 boxShadow: "var(--shadow-sm)"
               }}
             >
-              ⚙️ Settings
+              ⚙️ <span className="button-text">Settings</span>
             </button>
 
             <button 
               onClick={toggleTheme}
+              className="nav-btn-mobile-icon"
               style={{
                 padding: "8px 16px", borderRadius: "20px", display: "flex", gap: "8px", alignItems: "center",
                 background: "var(--surface)", border: "1px solid var(--glass-border)", color: "var(--foreground)",
@@ -1071,11 +1088,44 @@ export default function Home() {
                 boxShadow: "var(--shadow-sm)"
               }}
             >
-              {darkMode ? "☀️ Light" : "🌙 Dark"}
+              {darkMode ? "☀️" : "🌙"} <span className="button-text">{darkMode ? "Light" : "Dark"}</span>
             </button>
           </div>
         </div>
       </nav>
+
+      {/* Mobile Menu Dropdown Panel */}
+      {isMobileMenuOpen && (
+        <div style={{
+          position: "fixed",
+          top: "72px",
+          left: 0,
+          right: 0,
+          background: "var(--nav-bg)",
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
+          borderBottom: "1px solid var(--glass-border)",
+          padding: "1rem 2rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.5rem",
+          zIndex: 49,
+          boxShadow: "var(--shadow-md)"
+        }} className="animate-slide-up">
+          <a href="/home" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+            🏠 Home
+          </a>
+          <a href="/posts" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+            📰 Articles
+          </a>
+          <a href="/downloads" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+            📥 Downloads
+          </a>
+          <a href="/videos" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+            🎥 Videos
+          </a>
+        </div>
+      )}
 
       {/* Settings Drawer / Modal */}
       {showSettings && (

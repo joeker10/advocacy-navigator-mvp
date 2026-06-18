@@ -191,3 +191,69 @@ html[data-theme="dark"] {
   color: var(--primary) !important;
 }
 
+/* Responsive Navbar Styles */
+@media (max-width: 1024px) {
+  .desktop-nav {
+    display: none !important;
+  }
+  .mobile-menu-btn {
+    display: block !important;
+  }
+  .button-text {
+    display: none !important;
+  }
+  .nav-btn-mobile-icon {
+    padding: 8px 12px !important;
+    border-radius: 50% !important;
+    min-height: 38px !important;
+    min-width: 38px !important;
+    justify-content: center !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  .desktop-nav {
+    display: flex !important;
+  }
+  .mobile-menu-btn {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .nav-title {
+    font-size: 1rem !important;
+  }
+  .container {
+    padding: 0 0.75rem !important;
+  }
+  .nav-logo {
+    width: 32px !important;
+    height: 32px !important;
+  }
+}
+
+/* Responsive email styles to prevent overflow on mobile */
+.responsive-email {
+  color: var(--primary);
+  text-decoration: underline;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  display: inline-block;
+  max-width: 100%;
+  transition: opacity var(--transition-fast);
+}
+
+.responsive-email:hover {
+  opacity: 0.8;
+}
+
+@media (max-width: 480px) {
+  .responsive-email {
+    display: block;
+    margin: 0.5rem auto;
+    font-size: 0.9rem;
+  }
+}
+
+

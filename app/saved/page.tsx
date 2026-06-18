@@ -50,15 +50,15 @@ export default function SavedInsightsPage() {
                 boxShadow: "0 4px 12px var(--primary-glow)", border: "1px solid var(--glass-border)", objectFit: "cover"
               }} 
             />
-            <h1 style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.01em" }}>Saved Insights</h1>
+            <h1 className="nav-title" style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.01em" }}>Saved Insights</h1>
           </div>
-          <a href="/" style={{
+          <a href="/" className="nav-btn-mobile-icon" style={{
             padding: "8px 16px", borderRadius: "20px", display: "flex", gap: "8px", alignItems: "center",
             background: "var(--surface)", border: "1px solid var(--glass-border)", color: "var(--foreground)",
             cursor: "pointer", fontWeight: 600, fontSize: "0.875rem", textDecoration: "none",
             boxShadow: "var(--shadow-sm)"
           }}>
-            &larr; Back to Dashboard
+            👈 <span className="button-text">Back to Dashboard</span>
           </a>
         </div>
       </nav>

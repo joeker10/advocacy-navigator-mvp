@@ -106,7 +106,8 @@ export default function VideosPage() {
             Subscribe to our YouTube channel directly at{" "}
             <a 
               href="mailto:thespecialeducationnavigator@gmail.com" 
-              style={{ color: "var(--primary)", fontWeight: 600, textDecoration: "underline" }}
+              className="responsive-email"
+              style={{ fontWeight: 600 }}
             >
               thespecialeducationnavigator@gmail.com
             </a>.
