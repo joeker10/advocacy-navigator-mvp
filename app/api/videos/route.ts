@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
-const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || "NAVIGATE_ADMIN";
+const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || "graditide";
 
 const DEFAULT_VIDEOS = [
   {

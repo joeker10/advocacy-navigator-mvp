@@ -385,7 +385,7 @@ export default function AdminPage() {
 
   const handleVerifyPasscode = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passcode === "NAVIGATE_ADMIN") {
+    if (passcode === "graditide") {
       setIsAuthorized(true);
       setStatus({ type: "success", message: "Passcode verified. Welcome, Administrator." });
       setTimeout(() => setStatus(null), 3000);
