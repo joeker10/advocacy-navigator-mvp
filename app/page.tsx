@@ -1192,6 +1192,28 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Help & Support Section */}
+            <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>Help & Support</h3>
+              <p style={{ fontSize: "0.85rem", opacity: 0.7, marginBottom: "1rem" }}>
+                Encountered an issue or have feedback? Let us know to help improve the Navigator.
+              </p>
+              <a 
+                href="https://docs.google.com/forms/d/e/1FAIpQLSdDSAJHvlrEJ5JYra7vokzqDoNJT4SKQaRcvak7YDN3F3kIkQ/viewform"
+                target="_blank" 
+                rel="noreferrer"
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                  width: "100%", padding: "0.75rem", borderRadius: "12px",
+                  background: "var(--primary-glow)", border: "1px solid var(--primary)",
+                  color: "var(--primary)", fontWeight: 700, textDecoration: "none",
+                  fontSize: "0.95rem", textAlign: "center", cursor: "pointer", transition: "all 0.2s"
+                }}
+              >
+                🐛 Report a Bug / Feedback
+              </a>
+            </div>
+
             <button 
               onClick={handleLogout}
               style={{ width: "100%", padding: "0.8rem", borderRadius: "12px", background: "hsla(0, 80%, 50%, 0.1)", border: "1px solid hsla(0, 80%, 50%, 0.3)", color: "hsl(0, 80%, 60%)", fontWeight: 700, cursor: "pointer", marginTop: "2rem" }}
