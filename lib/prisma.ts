@@ -8,22 +8,35 @@ let databaseUrl = process.env.DATABASE_URL || "file:./dev.db";
 
 const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT;
 
+console.log("Database resolver runtime diagnostics:", {
+  isServerless: !!isServerless,
+  DATABASE_URL_ENV: process.env.DATABASE_URL,
+  databaseUrl,
+  VERCEL: process.env.VERCEL,
+  AWS: process.env.AWS_LAMBDA_FUNCTION_NAME,
+  CWD: process.cwd(),
+  DIRNAME: __dirname
+});
+
 if (isServerless && databaseUrl.startsWith("file:")) {
   const destPath = "/tmp/dev.db";
 
   // Dynamic searcher to locate dev.db in serverless bundles
   const findDatabaseFile = (): string | null => {
     const fileNames = ["dev.db", "prisma/dev.db"];
+    const searchedPaths: string[] = [];
     
     // 1. Check direct relative paths from process.cwd()
     for (const name of fileNames) {
       const p = path.resolve(process.cwd(), name);
+      searchedPaths.push(p);
       if (fs.existsSync(p)) return p;
     }
 
     // 2. Check relative paths from __dirname
     for (const name of fileNames) {
       const p = path.resolve(__dirname, name);
+      searchedPaths.push(p);
       if (fs.existsSync(p)) return p;
     }
 
@@ -32,6 +45,7 @@ if (isServerless && databaseUrl.startsWith("file:")) {
     while (true) {
       for (const name of fileNames) {
         const checkPath = path.join(currentDir, name);
+        searchedPaths.push(checkPath);
         if (fs.existsSync(checkPath)) return checkPath;
       }
       const parent = path.dirname(currentDir);
@@ -44,6 +58,7 @@ if (isServerless && databaseUrl.startsWith("file:")) {
     while (true) {
       for (const name of fileNames) {
         const checkPath = path.join(currentDir, name);
+        searchedPaths.push(checkPath);
         if (fs.existsSync(checkPath)) return checkPath;
       }
       const parent = path.dirname(currentDir);
@@ -51,6 +66,7 @@ if (isServerless && databaseUrl.startsWith("file:")) {
       currentDir = parent;
     }
 
+    console.warn("Could not locate dev.db template file. Searched paths:", searchedPaths);
     return null;
   };
 

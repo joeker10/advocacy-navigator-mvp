@@ -8,7 +8,9 @@ const nextConfig: NextConfig = {
   },
   allowedDevOrigins: ['10.56.56.251'],
   outputFileTracingIncludes: {
+    '**/*': ['./dev.db', './dev.db-wal', './dev.db-shm'],
     '/api/**/*': ['./dev.db', './dev.db-wal', './dev.db-shm'],
+    'api/**/*': ['./dev.db', './dev.db-wal', './dev.db-shm'],
   }
 };
 
