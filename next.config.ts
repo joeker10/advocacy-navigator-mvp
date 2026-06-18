@@ -6,7 +6,10 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: process.env.CAPACITOR_BUILD === 'true'
   },
-  allowedDevOrigins: ['10.56.56.251']
+  allowedDevOrigins: ['10.56.56.251'],
+  outputFileTracingIncludes: {
+    '/api/**/*': ['./dev.db', './dev.db-wal', './dev.db-shm'],
+  }
 };
 
 export default withPWA({
