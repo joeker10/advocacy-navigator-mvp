@@ -5,7 +5,8 @@ const nextConfig: NextConfig = {
   output: process.env.CAPACITOR_BUILD === 'true' ? "export" : "standalone",
   images: {
     unoptimized: process.env.CAPACITOR_BUILD === 'true'
-  }
+  },
+  allowedDevOrigins: ['10.56.56.251']
 };
 
 export default withPWA({
