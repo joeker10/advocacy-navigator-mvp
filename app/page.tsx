@@ -1027,7 +1027,7 @@ export default function Home() {
               {isMobileMenuOpen ? "✕" : "☰"}
             </button>
 
-            <a href="/home" style={{ display: "flex", alignItems: "center", gap: "12px", textDecoration: "none", color: "var(--foreground)" }} aria-label="Special Education Navigator Home">
+            <a href="/home" target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: "12px", textDecoration: "none", color: "var(--foreground)" }} aria-label="Special Education Navigator Home">
               <img 
                 src="/navigator-logo.jpg" 
                 alt="" 
@@ -1043,16 +1043,16 @@ export default function Home() {
             </a>
             
             <div style={{ display: "flex", gap: "16px", marginLeft: "12px" }} role="navigation" aria-label="Public Pages Menu" className="desktop-nav">
-              <a href="/home" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
+              <a href="/home" target="_blank" rel="noopener noreferrer" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
                 Home
               </a>
-              <a href="/posts" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
+              <a href="/posts" target="_blank" rel="noopener noreferrer" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
                 Articles
               </a>
-              <a href="/downloads" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
+              <a href="/downloads" target="_blank" rel="noopener noreferrer" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
                 Downloads
               </a>
-              <a href="/videos" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
+              <a href="/videos" target="_blank" rel="noopener noreferrer" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
                 Videos
               </a>
             </div>
@@ -1112,16 +1112,16 @@ export default function Home() {
           zIndex: 49,
           boxShadow: "var(--shadow-md)"
         }} className="animate-slide-up">
-          <a href="/home" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <a href="/home" target="_blank" rel="noopener noreferrer" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             🏠 Home
           </a>
-          <a href="/posts" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <a href="/posts" target="_blank" rel="noopener noreferrer" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             📰 Articles
           </a>
-          <a href="/downloads" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <a href="/downloads" target="_blank" rel="noopener noreferrer" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             📥 Downloads
           </a>
-          <a href="/videos" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <a href="/videos" target="_blank" rel="noopener noreferrer" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             🎥 Videos
           </a>
         </div>
