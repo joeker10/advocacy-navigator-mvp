@@ -76,6 +76,10 @@ if (isServerless && databaseUrl.startsWith("file:")) {
   }
 }
 
+// Override the environment variable so the Prisma Query Engine uses the writable database path
+console.log(`Prisma Client resolving database URL: ${databaseUrl}`);
+process.env.DATABASE_URL = databaseUrl;
+
 const adapter = new PrismaLibSql({
   url: databaseUrl,
 });
