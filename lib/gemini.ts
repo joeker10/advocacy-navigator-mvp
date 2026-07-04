@@ -14,9 +14,9 @@ export async function retryWithBackoff<T>(
 ): Promise<T> {
   try {
     return await fn();
-  } catch (error: any) {
-    const errorMessage = error.message || String(error);
-    const statusCode = error.status || (error.statusCode ? error.statusCode() : null);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const statusCode = (error as any)?.status || (error as any)?.statusCode?.() || null;
 
     // Detect typical transient HTTP codes: 503 (Service Unavailable), 502 (Bad Gateway), 429 (Too Many Requests), 504 (Gateway Timeout)
     const isTransient = 

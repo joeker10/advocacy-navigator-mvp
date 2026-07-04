@@ -2,6 +2,43 @@
 import React, { useState, useRef, useEffect } from "react";
 import Navbar from "@/app/components/Navbar";
 
+interface Video {
+  id: string;
+  title: string;
+  description: string;
+  youtubeId: string;
+  type: string;
+  category: string;
+  duration: string;
+  releasedAt: string;
+}
+
+interface Post {
+  id: string;
+  title: string;
+  category: string;
+  excerpt: string;
+  content: string;
+  date: string;
+}
+
+interface Resource {
+  id: string;
+  title: string;
+  description: string;
+  fileName: string;
+}
+
+interface Coupon {
+  id: string;
+  code: string;
+  isActive: boolean;
+  discountType: "PERCENT" | "FIXED";
+  discountValue: number;
+  applicablePlan: string;
+  deployedTo: string;
+}
+
 export default function AdminPage() {
   const [passcode, setPasscode] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -38,9 +75,9 @@ export default function AdminPage() {
     return `${months[d.getMonth()]} ${d.getFullYear()}`;
   });
   const [showAdvancedVideo, setShowAdvancedVideo] = useState(false);
-  const [videos, setVideos] = useState<any[]>([]);
-  const [posts, setPosts] = useState<any[]>([]);
-  const [resources, setResources] = useState<any[]>([]);
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]);
 
   // Coupon Form State
   const [couponCode, setCouponCode] = useState("");
@@ -48,7 +85,7 @@ export default function AdminPage() {
   const [couponDiscountValue, setCouponDiscountValue] = useState(100);
   const [couponApplicablePlan, setCouponApplicablePlan] = useState("ALL");
   const [couponDeployedTo, setCouponDeployedTo] = useState("");
-  const [coupons, setCoupons] = useState<any[]>([]);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -125,9 +162,10 @@ export default function AdminPage() {
       setStatus({ type: "success", message: "Video deleted successfully." });
       setTimeout(() => setStatus(null), 3000);
       fetchVideos();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setStatus({ type: "error", message: err.message || "Failed to delete video." });
+      const message = err instanceof Error ? err.message : "Failed to delete video.";
+      setStatus({ type: "error", message });
     }
   };
 
@@ -147,9 +185,10 @@ export default function AdminPage() {
       setStatus({ type: "success", message: "Educational article deleted successfully." });
       setTimeout(() => setStatus(null), 3000);
       fetchPosts();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setStatus({ type: "error", message: err.message || "Failed to delete article." });
+      const message = err instanceof Error ? err.message : "Failed to delete article.";
+      setStatus({ type: "error", message });
     }
   };
 
@@ -169,9 +208,10 @@ export default function AdminPage() {
       setStatus({ type: "success", message: "Downloadable resource deleted successfully." });
       setTimeout(() => setStatus(null), 3000);
       fetchResources();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setStatus({ type: "error", message: err.message || "Failed to delete resource." });
+      const message = err instanceof Error ? err.message : "Failed to delete resource.";
+      setStatus({ type: "error", message });
     }
   };
 
@@ -212,9 +252,10 @@ export default function AdminPage() {
       setCouponApplicablePlan("ALL");
       setCouponDeployedTo("");
       fetchCoupons();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setStatus({ type: "error", message: err.message || "Failed to create coupon." });
+      const message = err instanceof Error ? err.message : "Failed to create coupon.";
+      setStatus({ type: "error", message });
     }
   };
 
@@ -234,9 +275,10 @@ export default function AdminPage() {
       setStatus({ type: "success", message: "Coupon deleted successfully." });
       setTimeout(() => setStatus(null), 3000);
       fetchCoupons();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setStatus({ type: "error", message: err.message || "Failed to delete coupon." });
+      const message = err instanceof Error ? err.message : "Failed to delete coupon.";
+      setStatus({ type: "error", message });
     }
   };
 
@@ -260,9 +302,10 @@ export default function AdminPage() {
       setStatus({ type: "success", message: "Coupon status updated." });
       setTimeout(() => setStatus(null), 3000);
       fetchCoupons();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setStatus({ type: "error", message: err.message || "Failed to update status." });
+      const message = err instanceof Error ? err.message : "Failed to update status.";
+      setStatus({ type: "error", message });
     }
   };
 
@@ -303,9 +346,10 @@ export default function AdminPage() {
       setStatus({ type: "success", message: "Coupon discount updated." });
       setTimeout(() => setStatus(null), 3000);
       fetchCoupons();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setStatus({ type: "error", message: err.message || "Failed to update discount." });
+      const message = err instanceof Error ? err.message : "Failed to update discount.";
+      setStatus({ type: "error", message });
     }
   };
 
@@ -338,9 +382,10 @@ export default function AdminPage() {
       setStatus({ type: "success", message: "Coupon applicable plan updated." });
       setTimeout(() => setStatus(null), 3000);
       fetchCoupons();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setStatus({ type: "error", message: err.message || "Failed to update plan." });
+      const message = err instanceof Error ? err.message : "Failed to update plan.";
+      setStatus({ type: "error", message });
     }
   };
 
@@ -366,9 +411,10 @@ export default function AdminPage() {
       setStatus({ type: "success", message: "Coupon deployment info updated." });
       setTimeout(() => setStatus(null), 3000);
       fetchCoupons();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setStatus({ type: "error", message: err.message || "Failed to update deployment." });
+      const message = err instanceof Error ? err.message : "Failed to update deployment.";
+      setStatus({ type: "error", message });
     }
   };
 
@@ -451,9 +497,10 @@ export default function AdminPage() {
       setPostExcerpt("");
       setPostContent("");
       fetchPosts();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setStatus({ type: "error", message: err.message || "Something went wrong." });
+      const message = err instanceof Error ? err.message : "Something went wrong.";
+      setStatus({ type: "error", message });
     }
   };
 
@@ -500,9 +547,10 @@ export default function AdminPage() {
       setResFileContent("");
       if (fileInputRef.current) fileInputRef.current.value = "";
       fetchResources();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setStatus({ type: "error", message: err.message || "Something went wrong." });
+      const message = err instanceof Error ? err.message : "Something went wrong.";
+      setStatus({ type: "error", message });
     }
   };
 
@@ -545,9 +593,10 @@ export default function AdminPage() {
       setVideoUrlOrId("");
       setVideoDuration("10:00");
       fetchVideos();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setStatus({ type: "error", message: err.message || "Something went wrong." });
+      const message = err instanceof Error ? err.message : "Something went wrong.";
+      setStatus({ type: "error", message });
     }
   };
 

@@ -143,7 +143,7 @@ export default function DemoPage() {
                 <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>💬</div>
                 <p style={{ fontSize: "1.1rem", fontWeight: 600 }}>SpEd Advocate Active</p>
                 <p style={{ fontSize: "0.9rem", marginTop: "0.5rem" }}>
-                  Try asking: "What are eligibility requirements for autism under HAR Chapter 60?"
+                  Try asking: &quot;What are eligibility requirements for autism under HAR Chapter 60?&quot;
                 </p>
                 <p style={{ fontSize: "0.8rem", color: "var(--primary)", marginTop: "1rem" }}>
                   Remaining free questions: {Math.max(0, 3 - promptCount)} of 3

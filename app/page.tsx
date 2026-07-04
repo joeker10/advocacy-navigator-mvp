@@ -12,7 +12,8 @@ function FilePreview({ file }: FilePreviewProps) {
 
   useEffect(() => {
     const url = URL.createObjectURL(file);
-    setObjectUrl(url);
+    // Use Promise.resolve to avoid synchronous setState in effect warning
+    Promise.resolve().then(() => setObjectUrl(url));
     return () => {
       URL.revokeObjectURL(url);
     };
@@ -182,10 +183,33 @@ function FilePreview({ file }: FilePreviewProps) {
   );
 }
 
+interface ExtractedDocument {
+  fileName: string;
+  files?: File[];
+  assessmentName?: string;
+  assessmentVersion?: string;
+  behavioralInfo?: string;
+  strengths?: string;
+  needs?: string;
+  takeaways?: string;
+  accommodations?: string;
+  rawTranscript?: string;
+  uncertainties?: string;
+}
+
+interface UserData {
+  id: string;
+  email: string;
+  subscriptionStatus: string;
+  parentId?: string;
+  twoFactorEnabled?: boolean;
+  linkedAccounts?: Array<{ id: string, email: string }>;
+}
+
 export default function Home() {
   const [isDragActive, setIsDragActive] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [extractedDocuments, setExtractedDocuments] = useState<any[]>([]);
+  const [extractedDocuments, setExtractedDocuments] = useState<ExtractedDocument[]>([]);
   const [darkMode, setDarkMode] = useState(false);
 
   // Chat Interface State
@@ -210,13 +234,13 @@ export default function Home() {
 
   // Document Editing & Correction States
   const [editingDocIdx, setEditingDocIdx] = useState<number | null>(null);
-  const [editFormData, setEditFormData] = useState<any | null>(null);
+  const [editFormData, setEditFormData] = useState<ExtractedDocument | null>(null);
   const [expandedTranscripts, setExpandedTranscripts] = useState<Record<number, boolean>>({});
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Phase 13 Auth & Subscription States
   const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<any | null>(null);
+  const [user, setUser] = useState<UserData | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [isAuthModeLogin, setIsAuthModeLogin] = useState<boolean>(true);
@@ -465,7 +489,7 @@ export default function Home() {
     setIsChatLoading(true);
 
     try {
-      const headers: any = { 'Content-Type': 'application/json' };
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -648,7 +672,7 @@ export default function Home() {
         formData.append('files', file);
       });
 
-      const headers: any = {};
+      const headers: Record<string, string> = {};
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -833,7 +857,7 @@ export default function Home() {
     }));
   };
 
-  const startEditingDoc = (idx: number, doc: any) => {
+  const startEditingDoc = (idx: number, doc: ExtractedDocument) => {
     setEditingDocIdx(idx);
     setEditFormData({ ...doc });
   };
@@ -1296,7 +1320,7 @@ export default function Home() {
             Seamless IEP Extraction. <br/> Absolute Data Privacy.
           </h2>
           <p style={{ fontSize: "1.2rem", color: "var(--foreground)", opacity: 0.7, maxWidth: "600px", margin: "0 auto" }}>
-            Simply drop the student's legal documents. We extract HAR Chapter 60 compliance mappings statelessly using edge AI, locking the results exclusively into your physical device.
+            Simply drop the student&apos;s legal documents. We extract HAR Chapter 60 compliance mappings statelessly using edge AI, locking the results exclusively into your physical device.
           </p>
         </section>
 
@@ -1888,7 +1912,7 @@ export default function Home() {
                   transition: "all 0.2s"
                 }}
               >
-                📄 Letter (8.5" x 11")
+                📄 Letter (8.5&quot; x 11&quot;)
               </button>
               <button
                 type="button"

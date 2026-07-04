@@ -7,7 +7,8 @@ import { retryWithBackoff } from '@/lib/gemini';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    let { query, history, context, rag_chunks } = body;
+    const { query, history } = body;
+    let { context, rag_chunks } = body;
 
     if (!query) {
       return NextResponse.json({ error: 'No query provided' }, { status: 400 });
@@ -140,8 +141,9 @@ Scope of Practice: You are an analytical tool, not a licensed attorney. Do not i
       response: responseText
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error("Chat API Error:", error);
-    return NextResponse.json({ error: 'Failed to process inquiry. ' + error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: 'Failed to process inquiry. ' + message }, { status: 500 });
   }
 }

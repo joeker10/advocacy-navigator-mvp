@@ -42,8 +42,8 @@ export async function POST(req: NextRequest) {
     }
 
     const parts: any[] = [];
-    let primaryMimeType = files[0].type;
-    let combinedFileName = files.length > 1 ? `Batch_${files.length}_Documents` : files[0].name;
+    const primaryMimeType = files[0].type;
+    const combinedFileName = files.length > 1 ? `Batch_${files.length}_Documents` : files[0].name;
 
     for (const file of files) {
       const arrayBuffer = await file.arrayBuffer();
@@ -198,8 +198,9 @@ export async function POST(req: NextRequest) {
       text_chunk: textChunkForVector
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error("Extraction API Error:", error);
-    return NextResponse.json({ error: 'Failed to process document. ' + error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: 'Failed to process document. ' + message }, { status: 500 });
   }
 }

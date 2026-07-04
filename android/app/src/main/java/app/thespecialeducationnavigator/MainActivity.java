@@ -1,4 +1,4 @@
-package com.advocacy.app;
+package app.thespecialeducationnavigator;
 
 import com.getcapacitor.BridgeActivity;
 

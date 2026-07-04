@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
+    "build:mobile": "mv app/api ./api-temp; CAPACITOR_BUILD=true npm run build; mv ./api-temp app/api; npx cap sync",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test:api": "node scripts/test-extraction.js",
     "postinstall": "prisma generate"
   },

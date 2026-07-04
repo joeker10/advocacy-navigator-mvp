@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Advocacy Platform</string>
     <string name="title_activity_main">Advocacy Platform</string>
-    <string name="package_name">com.advocacy.app</string>
-    <string name="custom_url_scheme">com.advocacy.app</string>
+    <string name="package_name">app.thespecialeducationnavigator</string>
+    <string name="custom_url_scheme">app.thespecialeducationnavigator</string>
 </resources>

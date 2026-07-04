@@ -22,7 +22,7 @@ function base64urlDecode(str: string): string {
 /**
  * Signs a payload to generate a signed JSON Web Token (JWT)
  */
-export function signToken(payload: any, expiresInSeconds = 7 * 24 * 60 * 60): string {
+export function signToken(payload: Record<string, unknown>, expiresInSeconds = 7 * 24 * 60 * 60): string {
   const header = { alg: 'HS256', typ: 'JWT' };
   const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;
   const fullPayload = { ...payload, exp };
@@ -41,7 +41,7 @@ export function signToken(payload: any, expiresInSeconds = 7 * 24 * 60 * 60): st
 /**
  * Verifies a JWT signature and checks expiration
  */
-export function verifyToken(token: string): any {
+export function verifyToken(token: string): Record<string, any> | null {
   if (!token) return null;
   const parts = token.split('.');
   if (parts.length !== 3) return null;
@@ -63,7 +63,8 @@ export function verifyToken(token: string): any {
       return null; // Expired
     }
     return payload;
-  } catch (e) {
+  } catch (error) {
+    console.error("Token verification error:", error);
     return null;
   }
 }
@@ -90,7 +91,7 @@ export function verifyPassword(password: string, storedHash: string): boolean {
 /**
  * Extracts and verifies auth token from request headers or query
  */
-export function getAuthenticatedUser(req: Request): any {
+export function getAuthenticatedUser(req: Request): Record<string, any> | null {
   const authHeader = req.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return null;

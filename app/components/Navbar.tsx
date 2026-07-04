@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -43,7 +44,7 @@ export default function Navbar() {
               {isMobileMenuOpen ? "✕" : "☰"}
             </button>
 
-            <a 
+            <Link
               href="/home" 
               style={{ display: "flex", alignItems: "center", gap: "12px", outlineColor: "var(--primary)" }} 
               aria-label="Special Education Navigator Home"
@@ -67,24 +68,24 @@ export default function Navbar() {
               <span className="nav-title" style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.01em", color: "var(--foreground)" }}>
                 SpEd Navigator
               </span>
-            </a>
+            </Link>
           </div>
 
           <div style={{ display: "flex", gap: "20px", alignItems: "center" }} role="menubar">
             <div className="desktop-nav" style={{ display: "flex", gap: "20px", alignItems: "center" }}>
-              <a href="/home" role="menuitem" className="nav-link" onClick={(e) => handleLinkClick(e, "/home")} target={isAdmin ? "_blank" : undefined} rel={isAdmin ? "noopener noreferrer" : undefined}>
+              <Link href="/home" role="menuitem" className="nav-link" onClick={(e) => handleLinkClick(e, "/home")} target={isAdmin ? "_blank" : undefined} rel={isAdmin ? "noopener noreferrer" : undefined}>
                 Home
-              </a>
-              <a href="/posts" role="menuitem" className="nav-link" onClick={(e) => handleLinkClick(e, "/posts")} target={isAdmin ? "_blank" : undefined} rel={isAdmin ? "noopener noreferrer" : undefined}>
+              </Link>
+              <Link href="/posts" role="menuitem" className="nav-link" onClick={(e) => handleLinkClick(e, "/posts")} target={isAdmin ? "_blank" : undefined} rel={isAdmin ? "noopener noreferrer" : undefined}>
                 Articles
-              </a>
-              <a href="/downloads" role="menuitem" className="nav-link" onClick={(e) => handleLinkClick(e, "/downloads")} target={isAdmin ? "_blank" : undefined} rel={isAdmin ? "noopener noreferrer" : undefined}>
+              </Link>
+              <Link href="/downloads" role="menuitem" className="nav-link" onClick={(e) => handleLinkClick(e, "/downloads")} target={isAdmin ? "_blank" : undefined} rel={isAdmin ? "noopener noreferrer" : undefined}>
                 Downloads
-              </a>
-              <a href="/videos" role="menuitem" className="nav-link" onClick={(e) => handleLinkClick(e, "/videos")} target={isAdmin ? "_blank" : undefined} rel={isAdmin ? "noopener noreferrer" : undefined}>
+              </Link>
+              <Link href="/videos" role="menuitem" className="nav-link" onClick={(e) => handleLinkClick(e, "/videos")} target={isAdmin ? "_blank" : undefined} rel={isAdmin ? "noopener noreferrer" : undefined}>
                 Videos
-              </a>
-              <a 
+              </Link>
+              <Link
                 href="/demo" 
                 role="menuitem" 
                 style={{ color: "var(--foreground)", fontWeight: 500, fontSize: "0.95rem", padding: "6px 12px", background: "var(--primary-glow)", border: "1px solid var(--primary)", borderRadius: "20px", textDecoration: "none", transition: "all var(--transition-fast)" }} 
@@ -95,10 +96,10 @@ export default function Navbar() {
                 rel={isAdmin ? "noopener noreferrer" : undefined}
               >
                 Try Demo
-              </a>
+              </Link>
             </div>
 
-            <a 
+            <Link
               href="/" 
               role="menuitem" 
               className="nav-btn-mobile-icon"
@@ -123,7 +124,7 @@ export default function Navbar() {
               rel={isAdmin ? "noopener noreferrer" : undefined}
             >
               🚀 <span className="button-text">Launch App</span>
-            </a>
+            </Link>
           </div>
         </div>
       </nav>
@@ -146,21 +147,21 @@ export default function Navbar() {
           zIndex: 99,
           boxShadow: "var(--shadow-md)"
         }} className="animate-slide-up">
-          <a href="/home" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <Link href="/home" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             🏠 Home
-          </a>
-          <a href="/posts" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          </Link>
+          <Link href="/posts" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             📰 Articles
-          </a>
-          <a href="/downloads" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          </Link>
+          <Link href="/downloads" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             📥 Downloads
-          </a>
-          <a href="/videos" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          </Link>
+          <Link href="/videos" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             🎥 Videos
-          </a>
-          <a href="/demo" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          </Link>
+          <Link href="/demo" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             🧪 Try Demo
-          </a>
+          </Link>
         </div>
       )}
     </>
