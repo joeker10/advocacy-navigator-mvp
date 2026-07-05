@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
-    "build:mobile": "mv app/api ./api-temp; CAPACITOR_BUILD=true npm run build; mv ./api-temp app/api; npx cap sync",
+    "build:mobile": "mv app/api ./api-temp; CAPACITOR_BUILD=true NEXT_PUBLIC_API_URL=https://thespecialeducationnavigator.app npm run build; mv ./api-temp app/api; npx cap sync",
     "start": "next start",
     "lint": "eslint .",
     "test:api": "node scripts/test-extraction.js",
