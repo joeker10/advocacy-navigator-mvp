@@ -103,13 +103,13 @@ export default function VideosPage() {
           </h1>
           <p style={{ fontSize: "1.1rem", opacity: 0.8, maxWidth: "700px", lineHeight: 1.6 }}>
             Watch quick explainers, tutorials, and deep dives detailing special education law in Hawaii. 
-            Subscribe to our YouTube channel directly at{" "}
+            If you have questions or want to request a video topic, reach out to us at{" "}
             <a 
-              href="mailto:thespecialeducationnavigator@gmail.com" 
+              href="mailto:support@thespecialeducationnavigator.app" 
               className="responsive-email"
               style={{ fontWeight: 600 }}
             >
-              thespecialeducationnavigator@gmail.com
+              support@thespecialeducationnavigator.app
             </a>.
           </p>
         </section>

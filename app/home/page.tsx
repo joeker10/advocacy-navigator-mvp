@@ -120,7 +120,7 @@ export default function HomePage() {
         <section className="glass-panel animate-slide-up animate-delay-3" style={{ marginTop: "5rem", padding: "3rem 2rem", textAlign: "center" }}>
           <h2 style={{ fontSize: "2rem", fontWeight: 800, marginBottom: "1rem" }}>Need Direct Advocacy Support?</h2>
           <p style={{ maxWidth: "700px", margin: "0 auto 2rem auto", opacity: 0.8, lineHeight: 1.6 }}>
-            If you need to escalate, reach out to the Special Education Navigator at <a href="mailto:thespecialeducationnavigator@gmail.com" className="responsive-email">thespecialeducationnavigator@gmail.com</a>. Or contact one of Hawaii&apos;s official parent support networks directly.
+            If you need to escalate, reach out to the Special Education Navigator at <a href="mailto:support@thespecialeducationnavigator.app" className="responsive-email">support@thespecialeducationnavigator.app</a>. Or contact one of Hawaii&apos;s official parent support networks directly.
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "2rem" }}>
             <div style={{ padding: "1.5rem", borderRadius: "16px", background: "var(--background)", border: "1px solid var(--border)", minWidth: "250px" }}>

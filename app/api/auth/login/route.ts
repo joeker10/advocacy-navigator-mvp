@@ -21,6 +21,54 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
+    // Block login and request verification if email is not verified
+    if (!user.emailVerified) {
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const codeExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          verificationToken: code,
+          verificationExpires: codeExpires
+        }
+      });
+
+      // Send email using Resend
+      const { Resend } = require('resend');
+      const resend = new Resend(process.env.RESEND_API_KEY || 'MOCK_KEY');
+      if (process.env.RESEND_API_KEY) {
+        try {
+          const { data, error } = await resend.emails.send({
+            from: 'The Special Education Navigator <no-reply@thespecialeducationnavigator.app>',
+            to: normalizedEmail,
+            subject: 'Verify your Special Education Navigator account',
+            text: `Your 6-digit email verification code is: ${code}\n\nThis code will expire in 15 minutes.`,
+            html: `<p>Thank you for registering with <strong>The Special Education Navigator</strong>.</p><p>Your 6-digit verification code is:</p><h2 style="font-size: 2rem; color: #0284c7; letter-spacing: 0.1em; font-family: monospace;">${code}</h2><p>This code will expire in 15 minutes.</p>`
+          });
+          if (error) {
+            console.error('Resend API Error (Login Re-Send):', error);
+          } else {
+            console.log('Resend Success (Login Re-Send):', data);
+          }
+        } catch (emailError: any) {
+          console.error('Failed to send verification email during login:', emailError);
+        }
+      } else {
+        console.log(`\n=================================================`);
+        console.log(`[EMAIL VERIFICATION OTP] Sent to: ${normalizedEmail}`);
+        console.log(`[EMAIL VERIFICATION OTP] Code: ${code} (LOGIN FLOW RE-SEND)`);
+        console.log(`=================================================\n`);
+      }
+
+      return NextResponse.json({
+        success: true,
+        verificationRequired: true,
+        email: normalizedEmail,
+        message: 'Email verification is required. A new code has been sent.'
+      });
+    }
+
     // Determine current subscription status, inheriting from parent account if linked
     let subscriptionStatus = user.subscriptionStatus;
     if (user.parentId) {
@@ -71,6 +119,19 @@ export async function POST(req: NextRequest) {
       subscriptionStatus
     });
 
+    // Calculate subscription ending date (1 year from parent creation or own creation)
+    let expiresDate = new Date(user.createdAt);
+    if (user.parentId) {
+      const parent = await prisma.user.findUnique({
+        where: { id: user.parentId }
+      });
+      if (parent) {
+        expiresDate = new Date(parent.createdAt);
+      }
+    }
+    expiresDate.setFullYear(expiresDate.getFullYear() + 1);
+    const subscriptionExpiresAt = expiresDate.toISOString();
+
     return NextResponse.json({
       success: true,
       token,
@@ -78,7 +139,8 @@ export async function POST(req: NextRequest) {
         id: user.id,
         email: user.email,
         subscriptionStatus,
-        twoFactorEnabled: user.twoFactorEnabled
+        twoFactorEnabled: user.twoFactorEnabled,
+        subscriptionExpiresAt
       }
     });
 

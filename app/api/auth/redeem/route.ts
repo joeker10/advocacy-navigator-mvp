@@ -60,6 +60,19 @@ export async function POST(req: NextRequest) {
       data: { subscriptionStatus: "SUBSCRIBED" },
     });
 
+    // Calculate subscription ending date (1 year from parent creation or own creation)
+    let expiresDate = new Date(updatedUser.createdAt);
+    if (updatedUser.parentId) {
+      const parent = await prisma.user.findUnique({
+        where: { id: updatedUser.parentId }
+      });
+      if (parent) {
+        expiresDate = new Date(parent.createdAt);
+      }
+    }
+    expiresDate.setFullYear(expiresDate.getFullYear() + 1);
+    const subscriptionExpiresAt = expiresDate.toISOString();
+
     return NextResponse.json({
       success: true,
       message: "Coupon redeemed successfully! Unlimited access unlocked.",
@@ -67,6 +80,7 @@ export async function POST(req: NextRequest) {
         id: updatedUser.id,
         email: updatedUser.email,
         subscriptionStatus: updatedUser.subscriptionStatus,
+        subscriptionExpiresAt
       },
     });
   } catch (error: any) {

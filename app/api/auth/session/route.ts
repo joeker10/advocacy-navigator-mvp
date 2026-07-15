@@ -39,6 +39,19 @@ export async function GET(req: NextRequest) {
       select: { id: true, email: true, createdAt: true }
     });
 
+    // Calculate subscription ending date (1 year from parent creation or own creation)
+    let expiresDate = new Date(user.createdAt);
+    if (user.parentId) {
+      const parent = await prisma.user.findUnique({
+        where: { id: user.parentId }
+      });
+      if (parent) {
+        expiresDate = new Date(parent.createdAt);
+      }
+    }
+    expiresDate.setFullYear(expiresDate.getFullYear() + 1);
+    const subscriptionExpiresAt = expiresDate.toISOString();
+
     return NextResponse.json({
       success: true,
       user: {
@@ -47,7 +60,8 @@ export async function GET(req: NextRequest) {
         subscriptionStatus,
         parentId: user.parentId,
         parentEmail,
-        linkedAccounts: linkedAccounts || []
+        linkedAccounts: linkedAccounts || [],
+        subscriptionExpiresAt
       }
     });
 

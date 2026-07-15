@@ -204,6 +204,7 @@ interface UserData {
   parentId?: string;
   twoFactorEnabled?: boolean;
   linkedAccounts?: Array<{ id: string, email: string }>;
+  subscriptionExpiresAt?: string;
 }
 
 export default function Home() {
@@ -258,6 +259,12 @@ export default function Home() {
   const [show2FAInput, setShow2FAInput] = useState(false);
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const [temp2FAToken, setTemp2FAToken] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showVerificationInput, setShowVerificationInput] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationError, setVerificationError] = useState("");
+  const [verificationLoading, setVerificationLoading] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -319,7 +326,11 @@ export default function Home() {
       });
       const data = await res.json();
       if (data.success) {
-        if (data.twoFactorRequired) {
+        if (data.verificationRequired) {
+          setVerificationEmail(data.email);
+          setShowVerificationInput(true);
+          setAuthError("");
+        } else if (data.twoFactorRequired) {
           setTemp2FAToken(data.tempToken);
           setShow2FAInput(true);
           setAuthError("");
@@ -340,6 +351,103 @@ export default function Home() {
       }
     } catch (err) {
       setAuthError("Failed to connect to authentication server.");
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setAuthError("");
+    const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNative;
+    
+    if (isNative) {
+      try {
+        const { GoogleAuth } = require('@codetrix-studio/capacitor-google-auth');
+        const userResult = await GoogleAuth.signIn();
+        if (userResult && userResult.authentication.idToken) {
+          const res = await fetch(`${API_URL}/api/auth/google`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ idToken: userResult.authentication.idToken })
+          });
+          const data = await res.json();
+          if (data.success && data.token) {
+            localStorage.setItem("spednav_auth_token", data.token);
+            setToken(data.token);
+            setUser(data.user);
+            setIsAuthenticated(true);
+            setAuthEmail("");
+            setAuthPassword("");
+          } else {
+            setAuthError(data.error || "Google authentication failed.");
+          }
+        } else {
+          setAuthError("Google Sign-In was cancelled or failed to retrieve token.");
+        }
+      } catch (err: any) {
+        setAuthError("Google Native Sign-In Error: " + (err.message || err));
+      }
+    } else {
+      const testEmail = prompt("Enter email to mock Google Sign-In (Local Testing):", "testgoogle@example.com");
+      if (!testEmail) return;
+      if (!testEmail.includes("@")) {
+        alert("Please enter a valid email address.");
+        return;
+      }
+      try {
+        const res = await fetch(`${API_URL}/api/auth/google`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken: `mock_token_${testEmail.toLowerCase().trim()}` })
+        });
+        const data = await res.json();
+        if (data.success && data.token) {
+          localStorage.setItem("spednav_auth_token", data.token);
+          setToken(data.token);
+          setUser(data.user);
+          setIsAuthenticated(true);
+          setAuthEmail("");
+          setAuthPassword("");
+        } else {
+          setAuthError(data.error || "Mock Google login failed.");
+        }
+      } catch (err) {
+        setAuthError("Failed to connect to authentication server for Mock Google login.");
+      }
+    }
+  };
+
+  const handleVerificationVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVerificationError("");
+    setVerificationLoading(true);
+    if (!verificationCode || verificationCode.trim().length !== 6) {
+      setVerificationError("Please enter a valid 6-digit code.");
+      setVerificationLoading(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/api/auth/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: verificationEmail, code: verificationCode })
+      });
+      const data = await res.json();
+      if (data.success && data.token) {
+        localStorage.setItem("spednav_auth_token", data.token);
+        setToken(data.token);
+        setUser(data.user);
+        setIsAuthenticated(true);
+        setAuthEmail("");
+        setAuthPassword("");
+        setShowVerificationInput(false);
+        setVerificationCode("");
+        setVerificationEmail("");
+      } else {
+        setVerificationError(data.error || "Verification failed.");
+      }
+    } catch (err) {
+      setVerificationError("Failed to connect to verification server.");
+    } finally {
+      setVerificationLoading(false);
     }
   };
 
@@ -931,11 +1039,50 @@ export default function Home() {
             />
             <h2 style={{ fontSize: "1.75rem", fontWeight: 850 }}>SpEd Navigator</h2>
             <p style={{ opacity: 0.7, fontSize: "0.9rem", marginTop: "0.25rem" }}>
-              {show2FAInput ? "Two-Factor Verification Required" : isAuthModeLogin ? "Sign in to access your child's advocate portal" : "Create your private zero-trust advocate account"}
+              {showVerificationInput ? "Email Verification Required" : show2FAInput ? "Two-Factor Verification Required" : isAuthModeLogin ? "Sign in to access your child's advocate portal" : "Create your private zero-trust advocate account"}
             </p>
           </div>
 
-          {show2FAInput ? (
+          {showVerificationInput ? (
+            <form onSubmit={handleVerificationVerify} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              <div>
+                <p style={{ fontSize: "0.9rem", opacity: 0.8, marginBottom: "1rem", textTransform: "none", textAlign: "center" }}>
+                  A 6-digit verification code has been sent to <strong>{verificationEmail}</strong>. Enter the code below to verify your email.
+                </p>
+                <label htmlFor="auth-verification-code" style={{ display: "block", fontSize: "0.8rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8, textAlign: "center" }}>Verification Code</label>
+                <input 
+                  id="auth-verification-code"
+                  type="text" 
+                  maxLength={6}
+                  placeholder="123456"
+                  value={verificationCode} 
+                  onChange={e => setVerificationCode(e.target.value.replace(/\D/g, ''))} 
+                  required
+                  style={{ width: "100%", padding: "0.75rem 1rem", borderRadius: "12px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", fontSize: "1.5rem", letterSpacing: "8px", textAlign: "center" }} 
+                />
+              </div>
+
+              {verificationError && (
+                <p style={{ color: "hsl(0, 80%, 50%)", fontSize: "0.85rem", fontWeight: 600, textAlign: "center" }}>{verificationError}</p>
+              )}
+
+              <button 
+                type="submit" 
+                disabled={verificationLoading}
+                style={{ width: "100%", padding: "0.85rem", borderRadius: "12px", background: "var(--primary)", color: "white", fontWeight: 700, border: "none", cursor: verificationLoading ? "not-allowed" : "pointer", boxShadow: "0 4px 12px var(--primary-glow)", opacity: verificationLoading ? 0.7 : 1 }}
+              >
+                {verificationLoading ? "Verifying..." : "Verify & Activate Account"}
+              </button>
+
+              <button 
+                type="button" 
+                onClick={() => { setShowVerificationInput(false); setVerificationCode(""); setVerificationError(""); }} 
+                style={{ background: "transparent", border: "none", color: "var(--foreground)", opacity: 0.6, fontWeight: 600, cursor: "pointer", fontSize: "0.9rem", alignSelf: "center" }}
+              >
+                ← Back to Login / Register
+              </button>
+            </form>
+          ) : show2FAInput ? (
             <form onSubmit={handle2FAVerify} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
               <div>
                 <p style={{ fontSize: "0.9rem", opacity: 0.8, marginBottom: "1rem", textTransform: "none", textAlign: "center" }}>
@@ -989,14 +1136,50 @@ export default function Home() {
               
               <div>
                 <label htmlFor="auth-password" style={{ display: "block", fontSize: "0.8rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Password</label>
-                <input 
-                  id="auth-password"
-                  type="password" 
-                  value={authPassword} 
-                  onChange={e => setAuthPassword(e.target.value)} 
-                  required
-                  style={{ width: "100%", padding: "0.75rem 1rem", borderRadius: "12px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }} 
-                />
+                <div style={{ position: "relative" }}>
+                  <input 
+                    id="auth-password"
+                    type={showPassword ? "text" : "password"} 
+                    value={authPassword} 
+                    onChange={e => setAuthPassword(e.target.value)} 
+                    required
+                    autoComplete="new-password"
+                    style={{ width: "100%", padding: "0.75rem 2.5rem 0.75rem 1rem", borderRadius: "12px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }} 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: "absolute",
+                      right: "0.75rem",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "var(--foreground)",
+                      opacity: 0.6,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "4px"
+                    }}
+                  >
+                    {showPassword ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: "1.2rem", height: "1.2rem" }}>
+                        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+                        <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+                        <path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+                        <line x1="2" y1="2" x2="22" y2="22"/>
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: "1.2rem", height: "1.2rem" }}>
+                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
 
               {authError && (
@@ -1009,14 +1192,48 @@ export default function Home() {
               >
                 {isAuthModeLogin ? "Sign In" : "Register Account"}
               </button>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", margin: "1rem 0 0.5rem 0", opacity: 0.4 }}>
+                <div style={{ flex: 1, height: "1px", background: "var(--foreground)" }}></div>
+                <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>OR</span>
+                <div style={{ flex: 1, height: "1px", background: "var(--foreground)" }}></div>
+              </div>
+
+              <button 
+                type="button" 
+                onClick={handleGoogleLogin}
+                style={{
+                  width: "100%",
+                  padding: "0.8rem",
+                  borderRadius: "12px",
+                  background: "rgba(255, 255, 255, 0.05)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "10px",
+                  transition: "all 0.2s"
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style={{ width: "1.2rem", height: "1.2rem" }}>
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                Sign In with Google
+              </button>
             </form>
           )}
 
           <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
             <button 
-              disabled={show2FAInput}
+              disabled={show2FAInput || showVerificationInput}
               onClick={() => { setIsAuthModeLogin(!isAuthModeLogin); setAuthError(""); }} 
-              style={{ background: "transparent", border: "none", color: "var(--primary)", fontWeight: 600, cursor: "pointer", fontSize: "0.9rem", opacity: show2FAInput ? 0.5 : 1 }}
+              style={{ background: "transparent", border: "none", color: "var(--primary)", fontWeight: 600, cursor: "pointer", fontSize: "0.9rem", opacity: (show2FAInput || showVerificationInput) ? 0.5 : 1 }}
             >
               {isAuthModeLogin ? "Create an Account" : "Already have an account? Sign In"}
             </button>
@@ -1164,12 +1381,30 @@ export default function Home() {
               <p style={{ fontSize: "0.85rem", opacity: 0.5, fontWeight: 700, textTransform: "uppercase" }}>Logged In As</p>
               <p style={{ fontSize: "1.1rem", fontWeight: 600, marginTop: "0.25rem" }}>{user?.email}</p>
               
-              <div style={{ marginTop: "1rem", display: "flex", alignItems: "center", gap: "10px" }}>
-                <span style={{ fontSize: "0.85rem", padding: "4px 12px", borderRadius: "20px", fontWeight: 700, background: user?.subscriptionStatus === "SUBSCRIBED" ? "var(--success-glow)" : "rgba(255,255,255,0.05)", border: user?.subscriptionStatus === "SUBSCRIBED" ? "1px solid var(--success)" : "1px solid var(--border)", color: user?.subscriptionStatus === "SUBSCRIBED" ? "var(--success)" : "var(--foreground)" }}>
-                  {user?.subscriptionStatus === "SUBSCRIBED" ? "👑 Subscribed (Unlimited)" : "Free Trial (Limited)"}
-                </span>
-                {user?.parentId && (
-                  <span style={{ fontSize: "0.8rem", opacity: 0.6 }}>Linked Family Account</span>
+              <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "10px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ fontSize: "0.85rem", padding: "4px 12px", borderRadius: "20px", fontWeight: 700, background: user?.subscriptionStatus === "SUBSCRIBED" ? "var(--success-glow)" : "rgba(255,255,255,0.05)", border: user?.subscriptionStatus === "SUBSCRIBED" ? "1px solid var(--success)" : "1px solid var(--border)", color: user?.subscriptionStatus === "SUBSCRIBED" ? "var(--success)" : "var(--foreground)" }}>
+                    {user?.subscriptionStatus === "SUBSCRIBED" ? "👑 Subscribed (Unlimited)" : "Free Trial (Limited)"}
+                  </span>
+                  {user?.parentId && (
+                    <span style={{ fontSize: "0.8rem", opacity: 0.6 }}>Linked Family Account</span>
+                  )}
+                </div>
+                {user?.subscriptionStatus === "SUBSCRIBED" ? (
+                  user?.subscriptionExpiresAt && (
+                    <p style={{ fontSize: "0.85rem", margin: 0, opacity: 0.8 }}>
+                      Subscription ends: <strong>{new Date(user.subscriptionExpiresAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</strong>
+                    </p>
+                  )
+                ) : (
+                  <div style={{ fontSize: "0.85rem", opacity: 0.8, display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <p style={{ margin: 0 }}>
+                      Usage Limit: <strong>{appPromptCount} / 3</strong> Free Prompts used
+                    </p>
+                    <p style={{ margin: 0, fontSize: "0.75rem", opacity: 0.7 }}>
+                      Redeem a coupon below or link a family account to unlock unlimited access.
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
@@ -1183,7 +1418,7 @@ export default function Home() {
                 <form onSubmit={handleRedeemCoupon} style={{ display: "flex", gap: "0.5rem" }}>
                   <input 
                     type="text" 
-                    placeholder="E.g., NAVIGATE2026" 
+                    placeholder="Enter Coupon Code" 
                     value={couponCode} 
                     onChange={e => setCouponCode(e.target.value)} 
                     style={{ flex: 1, padding: "0.6rem 1rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", textTransform: "uppercase" }} 
@@ -1272,6 +1507,14 @@ export default function Home() {
               <p style={{ fontSize: "0.85rem", opacity: 0.7, marginBottom: "1rem" }}>
                 Encountered an issue or have feedback? Let us know to help improve the Navigator.
               </p>
+              
+              <div style={{ fontSize: "0.85rem", padding: "0.75rem 1rem", borderRadius: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", marginBottom: "1rem", display: "flex", flexDirection: "column", gap: "4px" }}>
+                <span style={{ opacity: 0.6, fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Email Support</span>
+                <a href="mailto:support@thespecialeducationnavigator.app" style={{ color: "var(--primary)", fontWeight: 600, textDecoration: "none" }}>
+                  support@thespecialeducationnavigator.app
+                </a>
+              </div>
+
               <a 
                 href="https://docs.google.com/forms/d/e/1FAIpQLSdDSAJHvlrEJ5JYra7vokzqDoNJT4SKQaRcvak7YDN3F3kIkQ/viewform"
                 target="_blank" 

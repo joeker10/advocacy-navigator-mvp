@@ -1,7 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Advocacy Platform</string>
-    <string name="title_activity_main">Advocacy Platform</string>
+    <string name="app_name">SpEd Navigator</string>
+    <string name="title_activity_main">SpEd Navigator</string>
     <string name="package_name">app.thespecialeducationnavigator</string>
     <string name="custom_url_scheme">app.thespecialeducationnavigator</string>
+    <string name="server_client_id">76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com</string>
 </resources>
