@@ -1559,7 +1559,7 @@ export default function Home() {
               }} 
             />
           </div>
-          <h2 style={{ fontSize: "3.5rem", fontWeight: 800, lineHeight: 1.1, marginBottom: "1.5rem", background: "linear-gradient(135deg, var(--foreground), var(--primary))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          <h2 style={{ fontSize: "clamp(1.8rem, 7vw, 3.5rem)", fontWeight: 800, lineHeight: 1.1, marginBottom: "1.5rem", background: "linear-gradient(135deg, var(--foreground), var(--primary))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             Seamless IEP Extraction. <br/> Absolute Data Privacy.
           </h2>
           <p style={{ fontSize: "1.2rem", color: "var(--foreground)", opacity: 0.7, maxWidth: "600px", margin: "0 auto" }}>
