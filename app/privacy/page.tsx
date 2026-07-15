@@ -117,6 +117,18 @@ export default function PrivacyPolicy() {
         </p>
       </section>
 
+      <section style={{ marginBottom: '2.5rem' }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a', marginBottom: '1rem' }}>
+          Account Creation & Data Deletion Rights
+        </h2>
+        <p>
+          To authenticate users and secure subscription features, we collect your email address and generate a unique user ID. This is the only personal data stored on our servers.
+        </p>
+        <p>
+          You have the right to delete your account and all associated personal data at any time. To request deletion of your account and personal data, please contact us by emailing <strong>support@thespecialeducationnavigator.app</strong>. Upon receiving your request, we will permanently delete your account and email data from our database within 30 days.
+        </p>
+      </section>
+
       <footer style={{ 
         borderTop: '1px solid #e2e8f0', 
         paddingTop: '1.5rem', 
