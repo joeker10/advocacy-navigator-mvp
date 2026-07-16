@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Outfit } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const inter = Inter({
@@ -34,9 +35,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable}`}>
+      <Script src="https://accounts.google.com/gsi/client" strategy="lazyOnload" />
       <body className="antialiased" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
         <div style={{ flex: 1 }}>{children}</div>
-        <footer style={{ 
+        <footer className="app-footer" style={{ 
           width: "100%", 
           padding: "2rem 1rem", 
           textAlign: "center", 

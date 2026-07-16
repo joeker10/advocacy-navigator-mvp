@@ -1,7 +1,51 @@
 "use client";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { getUIPreference, setUIPreference } from "@/lib/storage";
-import { cacheVerifiedDocument, getOfflineDocuments, saveInsight, saveDocumentEmbedding, getDocumentEmbeddings, cosineSimilarity } from "@/lib/indexeddb";
+import ThemeToggle from "@/app/components/ThemeToggle";
+import { cacheVerifiedDocument, getOfflineDocuments, saveInsight, saveDocumentEmbedding, getDocumentEmbeddings, cosineSimilarity, getChildProfiles } from "@/lib/indexeddb";
+
+const safeUUID = () => {
+  if (typeof window !== "undefined" && window.crypto && window.crypto.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
+
+const formatEmailForMobile = (email?: string | null) => {
+  if (!email || typeof email !== 'string' || !email.includes('@')) return email || '';
+  const parts = email.split('@');
+  return (
+    <>
+      {parts[0]}@<wbr />{parts[1]}
+    </>
+  );
+};
+
+const renderTextWithEmailBreaks = (text: string) => {
+  if (!text || typeof text !== 'string') return text;
+  const emailRegex = /([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
+  const parts: any[] = [];
+  let lastIndex = 0;
+  let match;
+  while ((match = emailRegex.exec(text)) !== null) {
+    const matchIndex = match.index;
+    if (matchIndex > lastIndex) {
+      parts.push(text.substring(lastIndex, matchIndex));
+    }
+    const username = match[1];
+    const domain = match[2];
+    parts.push(
+      <span key={matchIndex} style={{ display: "inline-block", wordBreak: "break-all" }}>
+        {username}@<wbr />{domain}
+      </span>
+    );
+    lastIndex = emailRegex.lastIndex;
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+  return parts.length > 0 ? parts : text;
+};
 interface FilePreviewProps {
   file: File;
 }
@@ -12,7 +56,6 @@ function FilePreview({ file }: FilePreviewProps) {
 
   useEffect(() => {
     const url = URL.createObjectURL(file);
-    // Use Promise.resolve to avoid synchronous setState in effect warning
     Promise.resolve().then(() => setObjectUrl(url));
     return () => {
       URL.revokeObjectURL(url);
@@ -32,6 +75,45 @@ function FilePreview({ file }: FilePreviewProps) {
   else if (isImage) fileIcon = "🖼️";
   else if (isPdf) fileIcon = "📄";
   else if (isWordDoc || isOdtDoc) fileIcon = "📝";
+
+  const handleDownload = async () => {
+    const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNative;
+    
+    if (isNative) {
+      try {
+        const { Filesystem, Directory } = require('@capacitor/filesystem');
+        const { Share } = require('@capacitor/share');
+        
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onloadend = async () => {
+          const base64data = (reader.result as string).split(',')[1];
+          const fileName = file.name;
+          
+          const writeResult = await Filesystem.writeFile({
+            path: fileName,
+            data: base64data,
+            directory: Directory.Cache
+          });
+          
+          await Share.share({
+            title: `Download ${file.name}`,
+            url: writeResult.uri
+          });
+        };
+      } catch (err: any) {
+        console.error("Native download error:", err);
+        alert(`Failed to save file: ${err.message || err}`);
+      }
+    } else {
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
 
   return (
     <div style={{
@@ -90,10 +172,9 @@ function FilePreview({ file }: FilePreviewProps) {
               >
                 {isOpen ? "Close Preview" : "View Image"}
               </button>
-              <a
-                href={objectUrl}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={handleDownload}
                 style={{
                   padding: "4px 12px",
                   borderRadius: "12px",
@@ -102,21 +183,20 @@ function FilePreview({ file }: FilePreviewProps) {
                   color: "var(--foreground)",
                   fontWeight: 600,
                   fontSize: "0.8rem",
-                  textDecoration: "none",
+                  cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center"
                 }}
               >
-                Open ↗
-              </a>
+                Download ⬇️
+              </button>
             </>
           )}
 
           {isPdf && (
-            <a
-              href={objectUrl}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
+              onClick={handleDownload}
               style={{
                 padding: "4px 12px",
                 borderRadius: "12px",
@@ -125,19 +205,19 @@ function FilePreview({ file }: FilePreviewProps) {
                 color: "var(--primary)",
                 fontWeight: 600,
                 fontSize: "0.8rem",
-                textDecoration: "none",
+                cursor: "pointer",
                 display: "inline-flex",
                 alignItems: "center"
               }}
             >
-              View PDF ↗
-            </a>
+              Download PDF ⬇️
+            </button>
           )}
 
           {(isWordDoc || isOdtDoc) && (
-            <a
-              href={objectUrl}
-              download={file.name}
+            <button
+              type="button"
+              onClick={handleDownload}
               style={{
                 padding: "4px 12px",
                 borderRadius: "12px",
@@ -146,13 +226,13 @@ function FilePreview({ file }: FilePreviewProps) {
                 color: "var(--primary)",
                 fontWeight: 600,
                 fontSize: "0.8rem",
-                textDecoration: "none",
+                cursor: "pointer",
                 display: "inline-flex",
                 alignItems: "center"
               }}
             >
               Download ⬇️
-            </a>
+            </button>
           )}
         </div>
       </div>
@@ -201,6 +281,8 @@ interface UserData {
   id: string;
   email: string;
   subscriptionStatus: string;
+  subscriptionTier?: string;
+  profileLimit?: number;
   parentId?: string;
   twoFactorEnabled?: boolean;
   linkedAccounts?: Array<{ id: string, email: string }>;
@@ -213,11 +295,24 @@ export default function Home() {
   const [extractedDocuments, setExtractedDocuments] = useState<ExtractedDocument[]>([]);
   const [darkMode, setDarkMode] = useState(false);
 
+  const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    const isNative = typeof window !== "undefined" && 
+      ((window as any).Capacitor?.isNative || window.location.href.startsWith("file:") || window.location.hostname === "localhost" && window.location.port === "");
+    
+    if (isNative) {
+      e.preventDefault();
+      setIsMobileMenuOpen(false);
+      const targetUrl = href.startsWith("http") ? href : `https://thespecialeducationnavigator.app${href}`;
+      window.open(targetUrl, "_system");
+    }
+  };
+
   // Chat Interface State
   const [messages, setMessages] = useState<{role: 'user'|'model', text: string}[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isChatLoading, setIsChatLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Media Capture & Staging State
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
@@ -238,6 +333,27 @@ export default function Home() {
   const [editFormData, setEditFormData] = useState<ExtractedDocument | null>(null);
   const [expandedTranscripts, setExpandedTranscripts] = useState<Record<number, boolean>>({});
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [googleDocUrl, setGoogleDocUrl] = useState("");
+  const [isImportingGoogleDoc, setIsImportingGoogleDoc] = useState(false);
+  const [childProfiles, setChildProfiles] = useState<any[]>([]);
+  const [selectedChildId, setSelectedChildId] = useState<string>("general");
+  const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNative;
+  const [webInquiriesCount, setWebInquiriesCount] = useState(0);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const count = parseInt(localStorage.getItem("spednav_web_inquiries_count") || "0", 10);
+      setWebInquiriesCount(count);
+    }
+  }, []);
+
+  const incrementWebInquiry = () => {
+    if (!isNative) {
+      const nextCount = webInquiriesCount + 1;
+      setWebInquiriesCount(nextCount);
+      localStorage.setItem("spednav_web_inquiries_count", nextCount.toString());
+    }
+  };
 
   // Phase 13 Auth & Subscription States
   const [token, setToken] = useState<string | null>(null);
@@ -247,6 +363,7 @@ export default function Home() {
   const [isAuthModeLogin, setIsAuthModeLogin] = useState<boolean>(true);
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [couponCode, setCouponCode] = useState("");
@@ -266,13 +383,48 @@ export default function Home() {
   const [verificationError, setVerificationError] = useState("");
   const [verificationLoading, setVerificationLoading] = useState(false);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+  const isWebLocked = !isNative && webInquiriesCount >= 1 && (!user || user.subscriptionStatus !== 'SUBSCRIBED');
+
+  const [isSubscribedToNewsletter, setIsSubscribedToNewsletter] = useState(false);
+
+  useEffect(() => {
+    setIsSubscribedToNewsletter(localStorage.getItem("spednav_newsletter_subscribed") === "true");
+  }, []);
+
+  const handleToggleNewsletterSubscription = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.checked;
+    setIsSubscribedToNewsletter(val);
+    localStorage.setItem("spednav_newsletter_subscribed", val ? "true" : "false");
+    if (val && user?.email) {
+      try {
+        await fetch(`${API_URL}/api/newsletter/subscribe`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: user.email })
+        });
+      } catch (err) {
+        console.error("Failed to subscribe email:", err);
+      }
+    }
+  };
+
+  const triggerHaptic = () => {
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      try {
+        navigator.vibrate(15);
+      } catch (e) {
+        // Safe fallback
+      }
+    }
+  };
+
+  const API_URL = isNative ? (process.env.NEXT_PUBLIC_API_URL || "") : "";
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isChatLoading]);
 
-  // Load theme and session on mount
+  // Load theme, session, and child profiles on mount
   useEffect(() => {
     // Determine system theme preference
     const isDark = getUIPreference("darkMode", window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -280,15 +432,75 @@ export default function Home() {
     document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
 
+    // Load free prompt count from localStorage on mount (5 prompts per calendar month)
+    const currentMonth = new Date().toISOString().substring(0, 7); // e.g. "2026-07"
+    const logStr = localStorage.getItem("spednav_free_prompts_log");
+    if (logStr) {
+      try {
+        const log = JSON.parse(logStr);
+        if (log.month === currentMonth) {
+          setAppPromptCount(log.count || 0);
+        } else {
+          // New calendar month reset
+          setAppPromptCount(0);
+          localStorage.setItem("spednav_free_prompts_log", JSON.stringify({ month: currentMonth, count: 0 }));
+        }
+      } catch {
+        setAppPromptCount(0);
+      }
+    } else {
+      localStorage.setItem("spednav_free_prompts_log", JSON.stringify({ month: currentMonth, count: 0 }));
+    }
+
     // Verify session token
     const savedToken = localStorage.getItem("spednav_auth_token");
     if (savedToken) {
       setToken(savedToken);
       fetchSession(savedToken);
+      syncWithServer(savedToken);
     } else {
       setAuthLoading(false);
     }
+
+    // Absolute fallback timeout to prevent infinite loading screen on mobile
+    const loadingTimeout = setTimeout(() => {
+      setAuthLoading(false);
+    }, 3000);
+
+    async function loadProfiles() {
+      try {
+        const profiles = await getChildProfiles();
+        setChildProfiles(profiles);
+      } catch (err) {
+        console.error("Failed to load child profiles on mount:", err);
+      }
+    }
+    loadProfiles();
+
+    async function loadStagedAndExtracted() {
+      try {
+        const { getStagedFilesOffline, getExtractedDocsOffline } = await import("@/lib/indexeddb");
+        const staged = await getStagedFilesOffline();
+        if (staged.length > 0) setStagedFiles(staged);
+        const extracted = await getExtractedDocsOffline();
+        if (extracted.length > 0) setExtractedDocuments(extracted);
+      } catch (err) {
+        console.error("Failed to load staged or extracted docs from IndexedDB on mount:", err);
+      }
+    }
+    loadStagedAndExtracted();
+
+    return () => clearTimeout(loadingTimeout);
   }, []);
+
+  const incrementPromptCount = () => {
+    const currentMonth = new Date().toISOString().substring(0, 7);
+    setAppPromptCount(prev => {
+      const newVal = prev + 1;
+      localStorage.setItem("spednav_free_prompts_log", JSON.stringify({ month: currentMonth, count: newVal }));
+      return newVal;
+    });
+  };
 
   const fetchSession = async (authToken: string) => {
     try {
@@ -314,9 +526,28 @@ export default function Home() {
     }
   };
 
+  const syncWithServer = async (authToken: string) => {
+    if (!authToken) return;
+    try {
+      const { fullSync } = await import("@/lib/sync");
+      const data = await fullSync();
+      if (data && data.success) {
+        setChildProfiles(data.childProfiles);
+      }
+    } catch (err) {
+      console.error("Account synchronization failed:", err);
+    }
+  };
+
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
+
+    if (!isAuthModeLogin && authPassword !== authConfirmPassword) {
+      setAuthError("Passwords do not match. Please verify both fields.");
+      return;
+    }
+
     const endpoint = isAuthModeLogin ? "/api/auth/login" : "/api/auth/register";
     try {
       const res = await fetch(`${API_URL}${endpoint}`, {
@@ -341,8 +572,10 @@ export default function Home() {
           setIsAuthenticated(true);
           setAuthEmail("");
           setAuthPassword("");
+          setAuthConfirmPassword("");
           setShow2FAInput(false);
           setTwoFactorCode("");
+          syncWithServer(data.token);
         } else {
           setAuthError("Authentication failed: invalid token response.");
         }
@@ -351,6 +584,93 @@ export default function Home() {
       }
     } catch (err) {
       setAuthError("Failed to connect to authentication server.");
+    }
+  };
+
+  useEffect(() => {
+    const initGoogleWebAuth = () => {
+      const g = (window as any).google;
+      if (g && g.accounts && g.accounts.id) {
+        g.accounts.id.initialize({
+          client_id: "76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com",
+          callback: async (response: any) => {
+            const tokenVal = response.credential;
+            setAuthError("");
+            try {
+              const res = await fetch(`${API_URL}/api/auth/google`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ idToken: tokenVal })
+              });
+              const data = await res.json();
+              if (data.success && data.token) {
+                localStorage.setItem("spednav_auth_token", data.token);
+                setToken(data.token);
+                setUser(data.user);
+                setIsAuthenticated(true);
+                setAuthEmail("");
+                setAuthPassword("");
+                syncWithServer(data.token);
+              } else {
+                setAuthError(data.error || "Google authentication failed.");
+              }
+            } catch (err) {
+              setAuthError("Failed to connect to authentication server.");
+            }
+          }
+        });
+        
+        const container = document.getElementById("google-signin-btn-web");
+        if (container) {
+          g.accounts.id.renderButton(container, {
+            theme: "outline",
+            size: "large",
+            width: 380,
+            text: "signin_with"
+          });
+        }
+      }
+    };
+
+    const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNative;
+    if (!isNative && !isAuthenticated) {
+      if ((window as any).google) {
+        initGoogleWebAuth();
+      } else {
+        const interval = setInterval(() => {
+          if ((window as any).google) {
+            initGoogleWebAuth();
+            clearInterval(interval);
+          }
+        }, 500);
+        return () => clearInterval(interval);
+      }
+    }
+  }, [isAuthenticated]);
+
+  const handleGoogleDocImport = async () => {
+    if (!googleDocUrl.trim()) return;
+    setIsImportingGoogleDoc(true);
+    try {
+      const res = await fetch(`${API_URL}/api/import/googledoc`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: googleDocUrl })
+      });
+      const data = await res.json();
+      if (data.success && data.text) {
+        const docFile = new File([data.text], `${data.title || "Google_Doc"}.txt`, { type: "text/plain" });
+        await handleFiles([docFile]);
+        setGoogleDocUrl("");
+        alert(`Successfully staged Google Doc: "${data.title}"`);
+      } else {
+        alert(data.error || "Failed to import Google Doc. Make sure link sharing is enabled.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Network error importing Google Doc.");
+    } finally {
+      setIsImportingGoogleDoc(false);
     }
   };
 
@@ -376,6 +696,7 @@ export default function Home() {
             setIsAuthenticated(true);
             setAuthEmail("");
             setAuthPassword("");
+            syncWithServer(data.token);
           } else {
             setAuthError(data.error || "Google authentication failed.");
           }
@@ -406,6 +727,7 @@ export default function Home() {
           setIsAuthenticated(true);
           setAuthEmail("");
           setAuthPassword("");
+          syncWithServer(data.token);
         } else {
           setAuthError(data.error || "Mock Google login failed.");
         }
@@ -435,6 +757,13 @@ export default function Home() {
         localStorage.setItem("spednav_auth_token", data.token);
         setToken(data.token);
         setUser(data.user);
+        if (localStorage.getItem("spednav_newsletter_subscribed") === "true") {
+          fetch(`${API_URL}/api/newsletter/subscribe`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: data.user.email })
+          }).catch(err => console.error("Auto-subscription failed:", err));
+        }
         setIsAuthenticated(true);
         setAuthEmail("");
         setAuthPassword("");
@@ -573,6 +902,60 @@ export default function Home() {
     }
   };
 
+  // Child Profile Handlers
+  const [newChildName, setNewChildName] = useState("");
+  
+  const handleAddChildProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newChildName.trim()) return;
+    
+    // Determine limit (fallback to 0 if user is not loaded or unsubscribed)
+    const limit = user?.profileLimit ?? 0;
+    if (childProfiles.length >= limit) {
+      if (limit === 0) {
+        alert("🔒 Child profiles are a premium feature. Please subscribe or redeem a coupon in Settings to unlock child profiles.");
+      } else {
+        alert(`Limit reached: Your account tier allows up to ${limit} child profile(s).`);
+      }
+      return;
+    }
+
+    const newProfile = {
+      id: safeUUID(),
+      name: newChildName.trim(),
+      timestamp: Date.now()
+    };
+
+    try {
+      const { saveChildProfile } = await import("@/lib/indexeddb");
+      await saveChildProfile(newProfile);
+      setChildProfiles(prev => [...prev, newProfile]);
+      setNewChildName("");
+      const { syncItem } = await import("@/lib/sync");
+      await syncItem('profile', newProfile);
+    } catch (err) {
+      console.error("Failed to save child profile:", err);
+      alert("Failed to save child profile offline.");
+    }
+  };
+
+  const handleDeleteChildProfile = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete ${name}'s profile? All saved insights linked to this profile will be unlinked (but kept in general vault).`)) return;
+    try {
+      const { deleteChildProfile } = await import("@/lib/indexeddb");
+      await deleteChildProfile(id);
+      setChildProfiles(prev => prev.filter(c => c.id !== id));
+      if (selectedChildId === id) {
+        setSelectedChildId("general");
+      }
+      const { deleteRemoteItem } = await import("@/lib/sync");
+      await deleteRemoteItem('profile', id);
+    } catch (err) {
+      console.error("Failed to delete child profile:", err);
+      alert("Failed to delete child profile offline.");
+    }
+  };
+
   const toggleTheme = () => {
     const newVal = !darkMode;
     setDarkMode(newVal);
@@ -585,14 +968,17 @@ export default function Home() {
     if (e) e.preventDefault();
     if (!chatInput.trim() || isChatLoading) return;
     
-    // Gate prompts for unsubscribed users
-    if (user && user.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 3) {
-      alert("Free chat limit reached. Please upgrade to a Subscribed account or redeem a coupon code in Settings to continue.");
+    // Gate prompts for unsubscribed users (5 prompts per calendar month)
+    if (user && user.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 5) {
+      alert("You have reached your limit of 5 free monthly prompts. Please subscribe or redeem a coupon in Settings to unlock unlimited chats.");
       return;
     }
 
     const userMsg = chatInput.trim();
     setChatInput("");
+    if (chatInputRef.current) {
+      chatInputRef.current.style.height = "auto";
+    }
     setMessages(prev => [...prev, {role: 'user', text: userMsg}]);
     setIsChatLoading(true);
 
@@ -647,8 +1033,9 @@ export default function Home() {
       if (data.success) {
         setMessages(prev => [...prev, {role: 'model', text: data.response}]);
         if (user && user.subscriptionStatus !== 'SUBSCRIBED') {
-          setAppPromptCount(prev => prev + 1);
+          incrementPromptCount();
         }
+        incrementWebInquiry();
       } else {
         setMessages(prev => [...prev, {role: 'model', text: `Error: ${data.error}` }]);
       }
@@ -662,8 +1049,16 @@ export default function Home() {
 
   const handleSaveInsight = async (query: string, response: string) => {
     try {
-      await saveInsight(query, response);
-      alert("Insight saved securely to your offline vault!");
+      const childId = selectedChildId === "general" ? undefined : selectedChildId;
+      await saveInsight(query, response, childId);
+      triggerHaptic();
+      
+      const childName = childId ? childProfiles.find(c => c.id === childId)?.name : null;
+      if (childName) {
+        alert(`Insight saved securely under ${childName}'s profile!`);
+      } else {
+        alert("Insight saved securely to your offline vault!");
+      }
     } catch (e) {
       alert("Failed to save insight offline.");
     }
@@ -729,6 +1124,51 @@ export default function Home() {
     });
   };
 
+  const resolveGdocFile = (file: File): Promise<File | null> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const content = e.target?.result as string;
+          let docUrl = "";
+          try {
+            const parsed = JSON.parse(content);
+            docUrl = parsed.url || "";
+          } catch {
+            const match = content.match(/"url"\s*:\s*"([^"]+)"/);
+            if (match) docUrl = match[1];
+          }
+          if (!docUrl) {
+            alert(`Could not extract a valid Google Doc link from "${file.name}".`);
+            resolve(null);
+            return;
+          }
+          setIsImportingGoogleDoc(true);
+          const res = await fetch(`${API_URL}/api/import/googledoc`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: docUrl })
+          });
+          const data = await res.json();
+          if (data.success && data.text) {
+            const resolved = new File([data.text], `${data.title || file.name.replace('.gdoc', '')}.txt`, { type: "text/plain" });
+            resolve(resolved);
+          } else {
+            alert(data.error || `Failed to fetch Google Doc content for "${file.name}". Make sure link sharing is enabled.`);
+            resolve(null);
+          }
+        } catch (err) {
+          console.error(err);
+          alert(`Network error importing Google Doc shortcut "${file.name}".`);
+          resolve(null);
+        } finally {
+          setIsImportingGoogleDoc(false);
+        }
+      };
+      reader.readAsText(file);
+    });
+  };
+
   const handleFiles = async (files: File[]) => {
     if (files.length === 0) return;
     
@@ -739,7 +1179,9 @@ export default function Home() {
       f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
       f.type === 'application/vnd.oasis.opendocument.text' || 
       f.name.endsWith('.docx') || 
-      f.name.endsWith('.odt');
+      f.name.endsWith('.odt') ||
+      f.name.endsWith('.gdoc') ||
+      f.type === 'application/vnd.google-apps.document';
 
     const incomingHasAudio = files.some(f => f.type.startsWith('audio/'));
     const incomingHasVisual = files.some(isDocOrImage);
@@ -753,14 +1195,34 @@ export default function Home() {
 
     const processed: File[] = [];
     for (const droppedFile of files) {
-      let processedFile = droppedFile;
-      if (droppedFile.type.startsWith('image/')) {
-        processedFile = await compressImage(droppedFile);
+      // Duplicate detection
+      const isDuplicate = stagedFiles.some(f => f.name === droppedFile.name && f.size === droppedFile.size) ||
+                          extractedDocuments.some(d => d.fileName === droppedFile.name);
+      if (isDuplicate) {
+        const proceed = window.confirm(`The file "${droppedFile.name}" appears to be a duplicate of a document already staged or uploaded. Do you want to stage it anyway?`);
+        if (!proceed) {
+          continue; // skip this duplicate file
+        }
       }
-      processed.push(processedFile);
+
+      let processedFile = droppedFile;
+      if (droppedFile.name.endsWith('.gdoc') || droppedFile.type === 'application/vnd.google-apps.document') {
+        const resolved = await resolveGdocFile(droppedFile);
+        if (resolved) {
+          processed.push(resolved);
+        }
+      } else {
+        if (droppedFile.type.startsWith('image/')) {
+          processedFile = await compressImage(droppedFile);
+        }
+        processed.push(processedFile);
+      }
     }
     
     setStagedFiles(prev => [...prev, ...processed]);
+    import("@/lib/indexeddb").then(({ saveStagedFileOffline }) => {
+      processed.forEach(file => saveStagedFileOffline(file).catch(err => console.error("Failed to persist staged file:", err)));
+    });
   };
 
   const processStagedBatch = async () => {
@@ -805,8 +1267,19 @@ export default function Home() {
         if (data.vector && data.vector.length > 0) {
           await saveDocumentEmbedding(data.documentId, data.vector, data.text_chunk, 1);
         }
-        setExtractedDocuments(prev => [...prev, { fileName: data.fileName, files: [...stagedFiles], ...data.extractedData }]);
-        setStagedFiles([]); // Clear queue on success
+        const newExtDoc = { fileName: data.fileName, files: [], ...data.extractedData };
+        setExtractedDocuments(prev => {
+          const updated = [...prev, newExtDoc];
+          import("@/lib/indexeddb").then(({ saveExtractedDocOffline }) => {
+            saveExtractedDocOffline(newExtDoc).catch(err => console.error("Failed to save extracted doc offline:", err));
+          });
+          return updated;
+        });
+        setStagedFiles([]);
+        import("@/lib/indexeddb").then(({ clearStagedFilesOffline }) => {
+          clearStagedFilesOffline().catch(err => console.error("Failed to clear staged files offline:", err));
+        });
+        incrementWebInquiry();
       } else {
         alert(`Batch Analysis failed: ` + (data.error || 'Unknown error'));
       }
@@ -825,12 +1298,24 @@ export default function Home() {
         const temp = copy[index];
         copy[index] = copy[index + direction];
         copy[index + direction] = temp;
+        import("@/lib/indexeddb").then(async ({ clearStagedFilesOffline, saveStagedFileOffline }) => {
+          await clearStagedFilesOffline();
+          for (const f of copy) {
+            await saveStagedFileOffline(f);
+          }
+        }).catch(err => console.error("Failed to reorder staged files offline:", err));
       }
       return copy;
     });
   };
 
   const removeStagedFile = (index: number) => {
+    const fileToRemove = stagedFiles[index];
+    if (fileToRemove) {
+      import("@/lib/indexeddb").then(({ deleteStagedFileOffline }) => {
+        deleteStagedFileOffline(fileToRemove.name).catch(err => console.error("Failed to delete staged file offline:", err));
+      });
+    }
     setStagedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
@@ -854,6 +1339,7 @@ export default function Home() {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      triggerHaptic();
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
@@ -879,6 +1365,7 @@ export default function Home() {
   };
 
   const stopRecording = () => {
+    triggerHaptic();
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
@@ -891,6 +1378,7 @@ export default function Home() {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
       });
+      triggerHaptic();
       setCameraStream(stream);
       setIsCameraOpen(true);
     } catch (err) {
@@ -900,6 +1388,7 @@ export default function Home() {
   };
 
   const stopCamera = () => {
+    triggerHaptic();
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
       setCameraStream(null);
@@ -908,6 +1397,7 @@ export default function Home() {
   };
 
   const capturePhoto = () => {
+    triggerHaptic();
     if (videoRef.current) {
       const video = videoRef.current;
       const targetRatio = cameraAspectRatio === "letter" ? 8.5 / 11 : 9 / 16;
@@ -984,13 +1474,16 @@ export default function Home() {
     updatedDocs[idx] = { ...editFormData };
     
     setExtractedDocuments(updatedDocs);
+    import("@/lib/indexeddb").then(({ saveExtractedDocOffline }) => {
+      saveExtractedDocOffline(editFormData).catch(err => console.error("Failed to save edited doc offline:", err));
+    });
     setEditingDocIdx(null);
     setEditFormData(null);
 
     try {
       const allOffline = await getOfflineDocuments();
       const matchedOffline = allOffline.find((d: any) => d.fileName === editFormData.fileName);
-      const docId = matchedOffline ? matchedOffline.id : crypto.randomUUID();
+      const docId = matchedOffline ? matchedOffline.id : safeUUID();
       
       const { files, ...dbData } = editFormData;
       
@@ -1020,8 +1513,8 @@ export default function Home() {
   // Loading indicator for session restore
   if (authLoading) {
     return (
-      <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <p style={{ fontSize: "1.2rem", fontWeight: 600 }} className="animate-pulse">Loading Special Education Navigator...</p>
+      <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem" }}>
+        <p style={{ fontSize: "1.2rem", fontWeight: 600, textAlign: "center" }} className="animate-pulse">Loading Special Education Navigator...</p>
       </main>
     );
   }
@@ -1037,7 +1530,7 @@ export default function Home() {
               alt="Logo" 
               style={{ width: "70px", height: "70px", borderRadius: "50%", border: "2px solid var(--glass-border)", marginBottom: "1rem", objectFit: "cover" }} 
             />
-            <h2 style={{ fontSize: "1.75rem", fontWeight: 850 }}>SpEd Navigator</h2>
+            <h2 style={{ fontSize: "1.75rem", fontWeight: 850 }}>Special Education Navigator</h2>
             <p style={{ opacity: 0.7, fontSize: "0.9rem", marginTop: "0.25rem" }}>
               {showVerificationInput ? "Email Verification Required" : show2FAInput ? "Two-Factor Verification Required" : isAuthModeLogin ? "Sign in to access your child's advocate portal" : "Create your private zero-trust advocate account"}
             </p>
@@ -1182,8 +1675,43 @@ export default function Home() {
                 </div>
               </div>
 
+              {!isAuthModeLogin && (
+                <div style={{ marginTop: "1rem" }}>
+                  <label htmlFor="auth-confirm-password" style={{ display: "block", fontSize: "0.8rem", fontWeight: 700, marginBottom: "0.25rem", textTransform: "uppercase", opacity: 0.8 }}>Confirm Password</label>
+                  <div style={{ position: "relative" }}>
+                    <input 
+                      id="auth-confirm-password"
+                      type={showPassword ? "text" : "password"} 
+                      value={authConfirmPassword} 
+                      onChange={e => setAuthConfirmPassword(e.target.value)} 
+                      required
+                      autoComplete="new-password"
+                      style={{ width: "100%", padding: "0.75rem 2.5rem 0.75rem 1rem", borderRadius: "12px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }} 
+                    />
+                  </div>
+                </div>
+              )}
+
               {authError && (
                 <p style={{ color: "hsl(0, 80%, 50%)", fontSize: "0.85rem", fontWeight: 600 }}>{authError}</p>
+              )}
+
+              {!isAuthModeLogin && (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", marginTop: "0.75rem", padding: "4px" }}>
+                  <input 
+                    type="checkbox"
+                    id="register-newsletter"
+                    checked={isSubscribedToNewsletter}
+                    onChange={(e) => {
+                      setIsSubscribedToNewsletter(e.target.checked);
+                      localStorage.setItem("spednav_newsletter_subscribed", e.target.checked ? "true" : "false");
+                    }}
+                    style={{ width: "18px", height: "18px", marginTop: "2px", cursor: "pointer", accentColor: "var(--primary)" }}
+                  />
+                  <label htmlFor="register-newsletter" style={{ fontSize: "0.85rem", opacity: 0.8, cursor: "pointer", lineHeight: "1.4" }}>
+                    Subscribe to free advocacy tips & updates newsletter from <strong>joe@<wbr />thespecialeducationnavigator.app</strong>
+                  </label>
+                </div>
               )}
 
               <button 
@@ -1199,33 +1727,52 @@ export default function Home() {
                 <div style={{ flex: 1, height: "1px", background: "var(--foreground)" }}></div>
               </div>
 
-              <button 
-                type="button" 
-                onClick={handleGoogleLogin}
-                style={{
-                  width: "100%",
-                  padding: "0.8rem",
-                  borderRadius: "12px",
-                  background: "rgba(255, 255, 255, 0.05)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "10px",
-                  transition: "all 0.2s"
-                }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style={{ width: "1.2rem", height: "1.2rem" }}>
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                </svg>
-                Sign In with Google
-              </button>
+              {isNative ? (
+                <button 
+                  type="button" 
+                  onClick={handleGoogleLogin}
+                  className="gadget-btn"
+                  style={{
+                    width: "100%",
+                    padding: "0.8rem",
+                    background: "var(--surface)",
+                    color: "var(--foreground)",
+                    border: "1px solid var(--border)",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "10px"
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style={{ width: "1.2rem", height: "1.2rem" }}>
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                  </svg>
+                  Sign In with Google
+                </button>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", alignItems: "center" }}>
+                  <div id="google-signin-btn-web" style={{ width: "100%", display: "flex", justifyContent: "center" }}></div>
+                  <button
+                    type="button"
+                    onClick={handleGoogleLogin}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--foreground)",
+                      opacity: 0.5,
+                      fontSize: "0.75rem",
+                      cursor: "pointer",
+                      textDecoration: "underline"
+                    }}
+                  >
+                    Local Mock Google Login
+                  </button>
+                </div>
+              )}
             </form>
           )}
 
@@ -1244,7 +1791,7 @@ export default function Home() {
   }
 
   return (
-    <main style={{ minHeight: "100vh", position: "relative", zIndex: 1, paddingBottom: "4rem" }}>
+    <main className="main-wrapper" style={{ minHeight: "100vh", position: "relative", zIndex: 1, paddingBottom: "4rem" }}>
       {/* Top Navbar */}
       <nav style={{ 
         position: "sticky", top: 0, zIndex: 50,
@@ -1254,7 +1801,7 @@ export default function Home() {
         borderBottom: "1px solid var(--glass-border)",
       }}>
         <div className="container" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "72px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+          <div className="nav-logo-group" style={{ display: "flex", alignItems: "center", gap: "24px" }}>
             {/* Hamburger menu button for mobile screens */}
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -1268,7 +1815,7 @@ export default function Home() {
               {isMobileMenuOpen ? "✕" : "☰"}
             </button>
 
-            <a href="/home" target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: "12px", textDecoration: "none", color: "var(--foreground)" }} aria-label="Special Education Navigator Home">
+            <a href="/home" target="_blank" rel="noopener noreferrer" onClick={(e) => handleLinkClick(e, "/home")} style={{ display: "flex", alignItems: "center", gap: "12px", textDecoration: "none", color: "var(--foreground)" }} aria-label="Special Education Navigator Home">
               <img 
                 src="/navigator-logo.jpg" 
                 alt="" 
@@ -1278,28 +1825,28 @@ export default function Home() {
                   boxShadow: "0 4px 12px var(--primary-glow)", border: "1px solid var(--glass-border)", objectFit: "cover"
                 }} 
               />
-              <span className="nav-title" style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.01em", color: "var(--foreground)" }}>
-                SpEd Navigator
+              <span className="nav-title" style={{ fontSize: "1.1rem", fontWeight: 700, letterSpacing: "-0.01em", color: "var(--foreground)", lineHeight: "1.2", display: "inline-block", textAlign: "center", textDecoration: "none" }}>
+                Special Education <br/> Navigator
               </span>
             </a>
             
             <div style={{ display: "flex", gap: "16px", marginLeft: "12px" }} role="navigation" aria-label="Public Pages Menu" className="desktop-nav">
-              <a href="/home" target="_blank" rel="noopener noreferrer" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
+              <a href="/home" target="_blank" rel="noopener noreferrer" onClick={(e) => handleLinkClick(e, "/home")} style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
                 Home
               </a>
-              <a href="/posts" target="_blank" rel="noopener noreferrer" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
+              <a href="/posts" target="_blank" rel="noopener noreferrer" onClick={(e) => handleLinkClick(e, "/posts")} style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
                 Articles
               </a>
-              <a href="/downloads" target="_blank" rel="noopener noreferrer" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
+              <a href="/downloads" target="_blank" rel="noopener noreferrer" onClick={(e) => handleLinkClick(e, "/downloads")} style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
                 Downloads
               </a>
-              <a href="/videos" target="_blank" rel="noopener noreferrer" style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
+              <a href="/videos" target="_blank" rel="noopener noreferrer" onClick={(e) => handleLinkClick(e, "/videos")} style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
                 Videos
               </a>
             </div>
           </div>
           <div style={{ display: "flex", gap: "12px" }}>
-            <a href="/saved" className="nav-btn-mobile-icon" style={{
+            <a href="/saved" className="nav-btn-mobile-icon" onClick={(e) => handleLinkClick(e, "/saved")} style={{
               padding: "8px 16px", borderRadius: "20px", display: "flex", gap: "8px", alignItems: "center",
               background: "var(--primary-glow)", border: "1px solid var(--primary)", color: "var(--primary)",
               cursor: "pointer", fontWeight: 600, fontSize: "0.875rem", textDecoration: "none",
@@ -1319,18 +1866,7 @@ export default function Home() {
               ⚙️ <span className="button-text">Settings</span>
             </button>
 
-            <button 
-              onClick={toggleTheme}
-              className="nav-btn-mobile-icon"
-              style={{
-                padding: "8px 16px", borderRadius: "20px", display: "flex", gap: "8px", alignItems: "center",
-                background: "var(--surface)", border: "1px solid var(--glass-border)", color: "var(--foreground)",
-                cursor: "pointer", fontWeight: 600, fontSize: "0.875rem", transition: "all var(--transition-normal)",
-                boxShadow: "var(--shadow-sm)"
-              }}
-            >
-              {darkMode ? "☀️" : "🌙"} <span className="button-text">{darkMode ? "Light" : "Dark"}</span>
-            </button>
+            <ThemeToggle />
           </div>
         </div>
       </nav>
@@ -1353,18 +1889,24 @@ export default function Home() {
           zIndex: 49,
           boxShadow: "var(--shadow-md)"
         }} className="animate-slide-up">
-          <a href="/home" target="_blank" rel="noopener noreferrer" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <a href="/home" target="_blank" rel="noopener noreferrer" onClick={(e) => handleLinkClick(e, "/home")} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             🏠 Home
           </a>
-          <a href="/posts" target="_blank" rel="noopener noreferrer" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <a href="/posts" target="_blank" rel="noopener noreferrer" onClick={(e) => handleLinkClick(e, "/posts")} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             📰 Articles
           </a>
-          <a href="/downloads" target="_blank" rel="noopener noreferrer" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <a href="/downloads" target="_blank" rel="noopener noreferrer" onClick={(e) => handleLinkClick(e, "/downloads")} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             📥 Downloads
           </a>
-          <a href="/videos" target="_blank" rel="noopener noreferrer" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <a href="/tutorials" target="_blank" rel="noopener noreferrer" onClick={(e) => handleLinkClick(e, "/tutorials")} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+            📖 App Help
+          </a>
+          <a href="/videos" target="_blank" rel="noopener noreferrer" onClick={(e) => handleLinkClick(e, "/videos")} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             🎥 Videos
           </a>
+          <div style={{ display: "flex", justifyContent: "center", padding: "1rem 0 0.5rem" }}>
+            <ThemeToggle />
+          </div>
         </div>
       )}
 
@@ -1379,7 +1921,7 @@ export default function Home() {
 
             <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
               <p style={{ fontSize: "0.85rem", opacity: 0.5, fontWeight: 700, textTransform: "uppercase" }}>Logged In As</p>
-              <p style={{ fontSize: "1.1rem", fontWeight: 600, marginTop: "0.25rem" }}>{user?.email}</p>
+              <p style={{ fontSize: "1.1rem", fontWeight: 600, marginTop: "0.25rem" }}>{formatEmailForMobile(user?.email)}</p>
               
               <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "10px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -1399,7 +1941,7 @@ export default function Home() {
                 ) : (
                   <div style={{ fontSize: "0.85rem", opacity: 0.8, display: "flex", flexDirection: "column", gap: "4px" }}>
                     <p style={{ margin: 0 }}>
-                      Usage Limit: <strong>{appPromptCount} / 3</strong> Free Prompts used
+                      Usage Limit: <strong>{appPromptCount} / 5</strong> Free Prompts / month
                     </p>
                     <p style={{ margin: 0, fontSize: "0.75rem", opacity: 0.7 }}>
                       Redeem a coupon below or link a family account to unlock unlimited access.
@@ -1455,7 +1997,7 @@ export default function Home() {
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                       {user.linkedAccounts.map((member: any) => (
                         <div key={member.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--glass-border)", borderRadius: "8px" }}>
-                          <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>{member.email}</span>
+                          <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>{formatEmailForMobile(member.email)}</span>
                           <button onClick={() => handleRemoveFamilyMember(member.id)} style={{ background: "transparent", border: "none", color: "hsl(0, 80%, 50%)", fontSize: "0.8rem", cursor: "pointer" }}>Unlink</button>
                         </div>
                       ))}
@@ -1501,6 +2043,85 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Communication Settings Section */}
+            <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>Newsletter Settings</h3>
+              <p style={{ fontSize: "0.85rem", opacity: 0.7, marginBottom: "1rem" }}>Stay informed with special education compliance tips from <strong>joe@<wbr />thespecialeducationnavigator.app</strong>.</p>
+              
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--glass-border)", borderRadius: "8px" }}>
+                <span style={{ fontSize: "0.95rem", fontWeight: 600 }}>Subscribe to free newsletter</span>
+                <input 
+                  type="checkbox"
+                  checked={isSubscribedToNewsletter}
+                  onChange={handleToggleNewsletterSubscription}
+                  style={{ width: "20px", height: "20px", cursor: "pointer", accentColor: "var(--primary)" }}
+                />
+              </div>
+            </div>
+
+            {/* Child Profiles Section */}
+            <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>👦 Child Profiles</h3>
+              <p style={{ fontSize: "0.85rem", opacity: 0.7, marginBottom: "1rem" }}>
+                Create profiles to filter insights and keep separate records.
+              </p>
+
+              {/* Profiles List */}
+              {childProfiles.length === 0 ? (
+                <p style={{ fontSize: "0.85rem", opacity: 0.5, fontStyle: "italic", marginBottom: "1rem" }}>No child profiles created yet.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "1rem" }}>
+                  {childProfiles.map((child) => (
+                    <div 
+                      key={child.id} 
+                      style={{ 
+                        display: "flex", 
+                        justifyContent: "space-between", 
+                        alignItems: "center", 
+                        padding: "8px 12px", 
+                        background: "rgba(255,255,255,0.03)", 
+                        border: "1px solid var(--glass-border)", 
+                        borderRadius: "8px" 
+                      }}
+                    >
+                      <span style={{ fontSize: "0.95rem", fontWeight: 600 }}>👦 {child.name}</span>
+                      <button 
+                        onClick={() => handleDeleteChildProfile(child.id, child.name)} 
+                        style={{ 
+                          background: "transparent", 
+                          border: "none", 
+                          color: "hsl(0, 80%, 50%)", 
+                          fontSize: "0.8rem", 
+                          cursor: "pointer",
+                          fontWeight: 600
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add Profile Form */}
+              {childProfiles.length >= (user?.profileLimit ?? 1) ? (
+                <div style={{ fontSize: "0.8rem", opacity: 0.7, padding: "8px 12px", background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", borderRadius: "8px", color: "#fbbf24" }}>
+                  ⚠️ Profile limit reached ({childProfiles.length} of {user?.profileLimit ?? 1}). Upgrade or redeem a coupon to add more profiles.
+                </div>
+              ) : (
+                <form onSubmit={handleAddChildProfile} style={{ display: "flex", gap: "0.5rem" }}>
+                  <input 
+                    type="text" 
+                    placeholder="Child's Name" 
+                    value={newChildName} 
+                    onChange={e => setNewChildName(e.target.value)} 
+                    style={{ flex: 1, padding: "0.6rem 1rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }} 
+                  />
+                  <button type="submit" style={{ padding: "0.6rem 1.2rem", borderRadius: "8px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: "pointer" }}>Add</button>
+                </form>
+              )}
+            </div>
+
             {/* Help & Support Section */}
             <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
               <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>Help & Support</h3>
@@ -1508,9 +2129,26 @@ export default function Home() {
                 Encountered an issue or have feedback? Let us know to help improve the Navigator.
               </p>
               
+              <a 
+                href="/tutorials"
+                target="_blank" 
+                rel="noopener noreferrer"
+                onClick={(e) => handleLinkClick(e, "/tutorials")}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                  width: "100%", padding: "0.75rem", borderRadius: "12px",
+                  background: "var(--surface)", border: "1px solid var(--border)",
+                  color: "var(--foreground)", fontWeight: 700, textDecoration: "none",
+                  fontSize: "0.95rem", textAlign: "center", cursor: "pointer", transition: "all 0.2s",
+                  marginBottom: "1rem"
+                }}
+              >
+                📖 View Tutorials & FAQs
+              </a>
+
               <div style={{ fontSize: "0.85rem", padding: "0.75rem 1rem", borderRadius: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", marginBottom: "1rem", display: "flex", flexDirection: "column", gap: "4px" }}>
                 <span style={{ opacity: 0.6, fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Email Support</span>
-                <a href="mailto:support@thespecialeducationnavigator.app" style={{ color: "var(--primary)", fontWeight: 600, textDecoration: "none" }}>
+                <a href="mailto:support@thespecialeducationnavigator.app" style={{ color: "var(--primary)", fontWeight: 600, textDecoration: "none", wordBreak: "break-all" }}>
                   support@thespecialeducationnavigator.app
                 </a>
               </div>
@@ -1519,6 +2157,7 @@ export default function Home() {
                 href="https://docs.google.com/forms/d/e/1FAIpQLSdDSAJHvlrEJ5JYra7vokzqDoNJT4SKQaRcvak7YDN3F3kIkQ/viewform"
                 target="_blank" 
                 rel="noreferrer"
+                onClick={(e) => handleLinkClick(e, "https://docs.google.com/forms/d/e/1FAIpQLSdDSAJHvlrEJ5JYra7vokzqDoNJT4SKQaRcvak7YDN3F3kIkQ/viewform")}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
                   width: "100%", padding: "0.75rem", borderRadius: "12px",
@@ -1541,10 +2180,10 @@ export default function Home() {
         </div>
       )}
 
-      <div className="container" style={{ marginTop: "4rem" }}>
+      <div className="container main-content-container" style={{ marginTop: "4rem" }}>
         
         {/* Dynamic Hero Section */}
-        <section style={{ textAlign: "center", marginBottom: "4rem", maxWidth: "800px", margin: "0 auto 4rem auto" }} className="animate-slide-up">
+        <section className="hero-section animate-slide-up" style={{ textAlign: "center", marginBottom: "4rem", maxWidth: "800px", margin: "0 auto 4rem auto" }}>
           <div style={{ marginBottom: "2rem", display: "flex", justifyContent: "center" }}>
             <img 
               src="/navigator-logo.jpg" 
@@ -1559,10 +2198,10 @@ export default function Home() {
               }} 
             />
           </div>
-          <h2 style={{ fontSize: "clamp(1.8rem, 7vw, 3.5rem)", fontWeight: 800, lineHeight: 1.1, marginBottom: "1.5rem", background: "linear-gradient(135deg, var(--foreground), var(--primary))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            Seamless IEP Extraction. <br/> Absolute Data Privacy.
+          <h2 style={{ fontSize: "clamp(1.2rem, 5vw, 1.8rem)", fontWeight: 800, lineHeight: 1.2, marginBottom: "1rem", background: "linear-gradient(135deg, var(--foreground), var(--primary))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            Special Education Navigator <br/> Seamless IEP Extraction. Absolute Data Privacy.
           </h2>
-          <p style={{ fontSize: "1.2rem", color: "var(--foreground)", opacity: 0.7, maxWidth: "600px", margin: "0 auto" }}>
+          <p style={{ fontSize: "0.9rem", color: "var(--foreground)", opacity: 0.8, maxWidth: "600px", margin: "0 auto", lineHeight: 1.5 }}>
             Simply drop the student&apos;s legal documents. We extract HAR Chapter 60 compliance mappings statelessly using edge AI, locking the results exclusively into your physical device.
           </p>
         </section>
@@ -1571,10 +2210,72 @@ export default function Home() {
         <div style={{ display: "flex", flexDirection: "column", gap: "2rem", transition: "all var(--transition-normal)" }}>
           
           {/* Input Controls Column */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          {isWebLocked ? (
+            <div className="glass-panel animate-slide-up" style={{ padding: "2.5rem", borderRadius: "16px", border: "1px solid var(--glass-border)", background: "rgba(255, 255, 255, 0.02)", textAlign: "left", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{ fontSize: "2.5rem" }}>🔒</span>
+                <div>
+                  <h3 style={{ fontSize: "1.35rem", fontWeight: 800, margin: 0, color: "var(--primary)" }}>Unlock Full Access</h3>
+                  <p style={{ margin: "2px 0 0", fontSize: "0.9rem", opacity: 0.7 }}>You have used your 1 free web inquiry. Download our official app to continue.</p>
+                </div>
+              </div>
+
+              <hr style={{ border: "none", borderTop: "1px solid var(--glass-border)", margin: "0.5rem 0" }} />
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "2rem" }}>
+                <div style={{ background: "rgba(255,255,255,0.01)", border: "1px solid var(--glass-border)", padding: "1.5rem", borderRadius: "12px" }}>
+                  <h4 style={{ fontSize: "1.05rem", fontWeight: 700, marginBottom: "0.75rem", color: "var(--success)" }}>📱 Free Mobile App</h4>
+                  <ul style={{ paddingLeft: "1.2rem", fontSize: "0.85rem", opacity: 0.85, margin: 0, display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <li>Get <strong>5 free document insights</strong> reset every calendar month automatically.</li>
+                    <li>Use your phone's camera to <strong>scan or photograph IEP papers</strong> instantly.</li>
+                    <li>Secure zero-trust storage: all insights are saved <strong>locally on your device</strong>.</li>
+                    <li>Access Navigator Academy <strong>tutorials, videos, and FAQs</strong> on the go.</li>
+                  </ul>
+                </div>
+                <div style={{ background: "rgba(255,255,255,0.01)", border: "1px solid var(--glass-border)", padding: "1.5rem", borderRadius: "12px" }}>
+                  <h4 style={{ fontSize: "1.05rem", fontWeight: 700, marginBottom: "0.75rem", color: "var(--primary)" }}>✨ Paid Premium Features</h4>
+                  <ul style={{ paddingLeft: "1.2rem", fontSize: "0.85rem", opacity: 0.85, margin: 0, display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <li><strong>Unlimited Analyses</strong>: Run extraction reports and ask questions with no limits.</li>
+                    <li><strong>Organized Child Profiles</strong>: Save and sort reports into individual folders for each child.</li>
+                    <li><strong>Family & Advocate Sharing</strong>: Share subscription access with up to 4 other users.</li>
+                    <li><strong>Reader Mode Controls</strong>: Toggle Dark Mode, scale font sizes, or print and export as TXT.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div style={{ marginTop: "1rem", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                <a 
+                  href="/downloads" 
+                  style={{
+                    padding: "12px 24px", borderRadius: "20px", background: "var(--primary)",
+                    color: "white", fontWeight: 700, fontSize: "0.9rem", textDecoration: "none",
+                    boxShadow: "0 4px 12px var(--primary-glow)", transition: "all 0.2s"
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.filter = "brightness(1.1)"}
+                  onMouseOut={(e) => e.currentTarget.style.filter = "none"}
+                >
+                  📥 Get App Downloads
+                </a>
+                <button 
+                  onClick={() => setShowSettings(true)}
+                  style={{
+                    padding: "12px 24px", borderRadius: "20px", background: "rgba(255, 255, 255, 0.05)",
+                    border: "1px solid var(--glass-border)", color: "var(--foreground)", fontWeight: 600,
+                    fontSize: "0.9rem", cursor: "pointer", transition: "all 0.2s"
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"}
+                  onMouseOut={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)"}
+                >
+                  🔑 Sign In / Redeem Code
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
             {/* Animated Glass Dropzone */}
-            <div 
-              className="glass-panel"
+            {!isNative && (
+              <div 
+              className="glass-panel drag-drop-zone"
               style={{
                 padding: "4rem 2rem", textAlign: "center",
                 border: isDragActive ? "2px solid var(--primary)" : "1px solid var(--glass-border)",
@@ -1589,7 +2290,7 @@ export default function Home() {
               onClick={user?.subscriptionStatus === 'SUBSCRIBED' ? () => fileInputRef.current?.click() : undefined}
             >
               {/* Free Tier Upload Lock Overlay */}
-              {user?.subscriptionStatus !== 'SUBSCRIBED' && (
+              {isNative && user?.subscriptionStatus !== 'SUBSCRIBED' && (
                 <div style={{
                   position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
                   background: "var(--nav-bg)", backdropFilter: "blur(12px)",
@@ -1654,9 +2355,10 @@ export default function Home() {
               </div>
             )}
           </div>
+          )}
 
           {/* Media Capture Controls */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
+          <div className="media-capture-controls" style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
             <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap", alignItems: "flex-start" }}>
               <button 
                 onClick={startCamera}
@@ -1677,7 +2379,7 @@ export default function Home() {
                 <input 
                   type="file" 
                   multiple
-                  accept="image/*,application/pdf,audio/*,.docx,.odt,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text" 
+                  accept="image/*,application/pdf,audio/*,.docx,.odt,.gdoc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text,application/vnd.google-apps.document" 
                   ref={fileInputRef} 
                   style={{ display: "none" }} 
                   onChange={handleFileInputChange} 
@@ -1764,10 +2466,11 @@ export default function Home() {
             )}
           </div>
           </div>
+        )}
 
-          {/* Staggered Results Stack */}
+        {/* Staggered Results Stack */}
           {extractedDocuments.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "2rem", maxHeight: "800px", overflowY: "auto", paddingRight: "1rem" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
               {extractedDocuments.map((doc, idx) => (
                 <div key={idx} className="glass-panel animate-slide-up" style={{ padding: "0" }}>
                   <div style={{ padding: "1.5rem", borderBottom: "1px solid var(--glass-border)", background: "hsla(150, 70%, 40%, 0.05)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1796,7 +2499,7 @@ export default function Home() {
                     )}
                   </div>
                   
-                  <div style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <div className="batch-result-card-content" style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
                     {/* Source File Previews */}
                     {doc.files && doc.files.length > 0 && (
                       <div style={{ marginBottom: "0.5rem" }} className="animate-slide-up">
@@ -2030,6 +2733,31 @@ export default function Home() {
                             )}
                           </div>
                         )}
+                        {/* Save to Vault (Insights) */}
+                        <div style={{ marginTop: "1.5rem", borderTop: "1px solid var(--glass-border)", paddingTop: "1rem", display: "flex", justifyContent: "flex-end" }}>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const summaryText = `**Assessment Overview:**\nName: ${doc.assessmentName || "N/A"} | Version: ${doc.assessmentVersion || "N/A"}\n\n**Behavioral Info:**\n${doc.behavioralInfo || "N/A"}\n\n**Identified Strengths:**\n${doc.strengths || "N/A"}\n\n**Core Needs & Deficits:**\n${doc.needs || "N/A"}\n\n**Key Takeaways:**\n${doc.takeaways || "N/A"}\n\n**Accommodations:**\n${doc.accommodations || "N/A"}`;
+                              await handleSaveInsight(`Extraction Summary: ${doc.assessmentName || "IEP Document"}`, summaryText);
+                            }}
+                            className="gadget-btn"
+                            style={{
+                              padding: "6px 12px",
+                              fontSize: "0.8rem",
+                              borderRadius: "10px",
+                              background: "rgba(var(--success-rgb), 0.1)",
+                              color: "var(--success)",
+                              border: "1px solid var(--success)",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px"
+                            }}
+                          >
+                            💾 Save to Insights Vault
+                          </button>
+                        </div>
                       </>
                     )}
                   </div>
@@ -2040,9 +2768,37 @@ export default function Home() {
         </div>
 
         {/* Interactive Advocate Chat Panel */}
-        <section className="glass-panel animate-slide-up animate-delay-2" style={{ marginTop: "4rem", padding: "2rem", display: "flex", flexDirection: "column", minHeight: "400px" }}>
-          <div style={{ paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)", marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h3 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--primary)" }}>Ask an Advocate</h3>
+        <section className="glass-panel chat-panel animate-slide-up animate-delay-2" style={{ marginTop: "4rem", padding: "2rem", display: "flex", flexDirection: "column", minHeight: "400px" }}>
+          <div style={{ paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)", marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "1.2rem", flexWrap: "wrap" }}>
+              <h3 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--primary)", margin: 0 }}>Ask the Navigator</h3>
+              
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "0.8rem", fontWeight: 700, opacity: 0.6 }}>PROFILE:</span>
+                <select
+                  id="child-profile-select"
+                  value={selectedChildId}
+                  onChange={(e) => setSelectedChildId(e.target.value)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "20px",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--foreground)",
+                    fontSize: "0.85rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    outline: "none",
+                    boxShadow: "inset 0 1px 3px rgba(0,0,0,0.1)"
+                  }}
+                >
+                  <option value="general">🌍 General Account</option>
+                  {childProfiles.map((child) => (
+                    <option key={child.id} value={child.id}>👦 {child.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             {extractedDocuments.length > 0 ? (
               <span style={{ fontSize: "0.85rem", padding: "4px 12px", background: "var(--success-glow)", border: "1px solid var(--success)", color: "var(--success)", borderRadius: "20px", fontWeight: 600 }}>Multi-Doc Context Mode</span>
             ) : (
@@ -2050,7 +2806,7 @@ export default function Home() {
             )}
           </div>
           
-          <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem", maxHeight: "400px" }}>
+          <div className="radio-screen" style={{ flex: 1, display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
             {messages.length === 0 ? (
               <div style={{ textAlign: "center", opacity: 0.5, marginTop: "2rem" }}>
                 <div style={{ fontSize: "2rem", marginBottom: "0.5rem", opacity: 0.8 }}>💬</div>
@@ -2058,9 +2814,9 @@ export default function Home() {
               </div>
             ) : (
               messages.map((msg, i) => (
-                <div key={i} style={{ alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', background: msg.role === 'user' ? 'var(--primary-glow)' : 'var(--surface)', border: `1px solid ${msg.role === 'user' ? 'var(--primary)' : 'var(--glass-border)'}`, padding: "1rem", borderRadius: "16px", maxWidth: "80%" }}>
+                <div key={i} className="chat-bubble" style={{ alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', background: msg.role === 'user' ? 'var(--primary-glow)' : 'var(--surface)', border: `1px solid ${msg.role === 'user' ? 'var(--primary)' : 'var(--border)'}`, padding: "1rem", borderRadius: "8px", width: msg.role === 'user' ? "auto" : "100%", maxWidth: msg.role === 'user' ? "90%" : "100%", boxShadow: "var(--shadow-sm)" }}>
                   <p style={{ fontWeight: 600, fontSize: "0.8rem", color: msg.role === 'user' ? 'var(--primary)' : 'var(--secondary)', marginBottom: "0.25rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>{msg.role === 'user' ? 'You' : 'Advocate'}</p>
-                  <p style={{ fontSize: "0.95rem", whiteSpace: "pre-wrap" }}>{msg.text}</p>
+                  <p style={{ fontSize: "0.95rem", whiteSpace: "pre-wrap" }}>{renderTextWithEmailBreaks(msg.text)}</p>
                   
                   {msg.role === 'model' && (
                     <button 
@@ -2087,33 +2843,74 @@ export default function Home() {
             <div ref={messagesEndRef} />
           </div>
 
-          <form onSubmit={sendChatMessage} style={{ display: "flex", gap: "0.5rem", width: "100%", flexWrap: "nowrap" }}>
-            <input 
-              type="text" 
-              value={chatInput} 
-              onChange={e => setChatInput(e.target.value)} 
-              disabled={isChatLoading || (user?.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 3)}
-              placeholder={
-                user?.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 3 
-                  ? "Prompt limit reached (3/3). Upgrade in Settings to unlock unlimited messaging." 
-                  : (extractedDocuments.length > 0 ? "E.g., Does the Assessment contradict the IEP's Needs?" : "E.g., What is an IEP timeline in Hawaii?")
-              }
-              style={{ flex: 1, minWidth: 0, padding: "0.75rem 1rem", borderRadius: "30px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", fontSize: "1rem", outline: "none", boxShadow: "inset 0 2px 4px rgba(0,0,0,0.05)" }}
-            />
-            <button 
-              type="submit" 
-              disabled={isChatLoading || !chatInput.trim() || (user?.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 3)}
-              style={{ flexShrink: 0, padding: "0 1.5rem", borderRadius: "30px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: (isChatLoading || !chatInput.trim() || (user?.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 3)) ? "not-allowed" : "pointer", opacity: (isChatLoading || !chatInput.trim() || (user?.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 3)) ? 0.7 : 1, transition: "all var(--transition-fast)", boxShadow: "0 4px 12px var(--primary-glow)" }}
-            >
-              Send
-            </button>
-          </form>
+          {isWebLocked ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", padding: "1rem", borderRadius: "12px", background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)", color: "#f87171", width: "100%", fontSize: "0.95rem", fontWeight: 600, textAlign: "center" }}>
+              🔒 Web chat is locked. Sign in above or download the mobile app to continue.
+            </div>
+          ) : (
+            <form onSubmit={sendChatMessage} style={{ display: "flex", gap: "0.5rem", width: "100%", alignItems: "flex-end" }}>
+              <textarea 
+                ref={chatInputRef}
+                rows={1}
+                value={chatInput} 
+                onChange={e => {
+                  setChatInput(e.target.value);
+                  e.target.style.height = "auto";
+                  e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+                }} 
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendChatMessage();
+                  }
+                }}
+                disabled={isChatLoading || (user?.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 5)}
+                placeholder={
+                  user?.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 5 
+                    ? "Monthly limit reached (5/5). Upgrade in Settings to unlock unlimited messaging." 
+                    : (extractedDocuments.length > 0 ? "E.g., Does the Assessment contradict the IEP's Needs?" : "E.g., What is an IEP timeline in Hawaii?")
+                }
+                style={{ 
+                  flex: 1, 
+                  minWidth: 0, 
+                  padding: "0.6rem 0.8rem", 
+                  borderRadius: "8px", 
+                  border: "1px solid var(--border)", 
+                  background: "var(--background)", 
+                  color: "var(--foreground)", 
+                  fontSize: "1rem", 
+                  outline: "none", 
+                  resize: "none", 
+                  maxHeight: "200px",
+                  lineHeight: "1.4",
+                  boxShadow: "inset 0 1px 3px rgba(0,0,0,0.08)" 
+                }}
+              />
+              <button 
+                type="submit" 
+                className="gadget-btn"
+                disabled={isChatLoading || !chatInput.trim() || (user?.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 5)}
+                style={{ 
+                  flexShrink: 0, 
+                  padding: "0.6rem 1.2rem", 
+                  background: "var(--primary)", 
+                  color: "white", 
+                  border: "1px solid rgba(0,0,0,0.15)", 
+                  cursor: (isChatLoading || !chatInput.trim() || (user?.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 5)) ? "not-allowed" : "pointer", 
+                  opacity: (isChatLoading || !chatInput.trim() || (user?.subscriptionStatus !== 'SUBSCRIBED' && appPromptCount >= 5)) ? 0.7 : 1, 
+                  height: "38px"
+                }}
+              >
+                Send
+              </button>
+            </form>
+          )}
         </section>
       </div>
       
       {/* Footer Nav */}
       <footer style={{ position: "absolute", bottom: "1rem", width: "100%", textAlign: "center", opacity: 0.6, fontSize: "0.875rem" }}>
-         <a href="/help" style={{ color: "var(--primary)", textDecoration: "underline", fontWeight: 600 }}>Access Resource Directory (HDRC/LDAH) &rarr;</a>
+         <a href="/help" onClick={(e) => handleLinkClick(e, "/help")} style={{ color: "var(--primary)", textDecoration: "underline", fontWeight: 600 }}>Access Resource Directory</a>
       </footer>
 
       {/* Camera Capture Modal Overlay */}

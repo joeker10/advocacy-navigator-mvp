@@ -30,27 +30,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if the coupon is restricted to a specific plan
-    if (coupon.applicablePlan !== "ALL") {
+    // Check if the coupon is restricted to specific plans
+    if (coupon.applicablePlan && coupon.applicablePlan !== "ALL") {
+      const allowedPlans = coupon.applicablePlan.split(",").map(p => p.trim().toUpperCase());
       if (!plan) {
         return NextResponse.json(
           {
             success: false,
-            error: `This coupon code is only applicable to the ${formatPlanName(
-              coupon.applicablePlan
-            )} plan.`,
+            error: `This coupon code is only applicable to the following plans: ${allowedPlans.map(formatPlanName).join(", ")}.`,
           },
           { status: 400 }
         );
       }
 
-      if (plan.trim().toUpperCase() !== coupon.applicablePlan) {
+      if (!allowedPlans.includes(plan.trim().toUpperCase())) {
         return NextResponse.json(
           {
             success: false,
-            error: `This coupon code is not valid for this plan. It is only valid for the ${formatPlanName(
-              coupon.applicablePlan
-            )} plan.`,
+            error: `This coupon code is not valid for this plan. It is only valid for the ${allowedPlans.map(formatPlanName).join(", ")} plan(s).`,
           },
           { status: 400 }
         );
@@ -63,6 +60,7 @@ export async function POST(req: NextRequest) {
       discountType: coupon.discountType,
       discountValue: coupon.discountValue,
       applicablePlan: coupon.applicablePlan,
+      isOneTimeUse: coupon.isOneTimeUse,
     });
   } catch (error: any) {
     console.error("Error validating coupon:", error);

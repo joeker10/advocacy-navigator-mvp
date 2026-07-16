@@ -64,6 +64,8 @@ export async function POST(req: NextRequest) {
         id: updatedUser.id,
         email: updatedUser.email,
         subscriptionStatus: updatedUser.subscriptionStatus,
+        subscriptionTier: updatedUser.subscriptionTier,
+        profileLimit: updatedUser.profileLimit,
         subscriptionExpiresAt
       }
     });

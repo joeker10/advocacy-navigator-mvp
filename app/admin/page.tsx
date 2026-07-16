@@ -36,13 +36,14 @@ interface Coupon {
   discountType: "PERCENT" | "FIXED";
   discountValue: number;
   applicablePlan: string;
+  isOneTimeUse: boolean;
   deployedTo: string;
 }
 
 export default function AdminPage() {
   const [passcode, setPasscode] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(false);
-  const [activeTab, setActiveTab] = useState<"post" | "resource" | "video" | "coupon">("post");
+  const [activeTab, setActiveTab] = useState<"post" | "resource" | "video" | "coupon" | "faq">("post");
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   
   // Post Form State
@@ -79,11 +80,23 @@ export default function AdminPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
 
+  // Tutorial Video Form State
+  const [tutVideoTitle, setTutVideoTitle] = useState("");
+  const [tutVideoDescription, setTutVideoDescription] = useState("");
+  const [tutVideoUrlOrId, setTutVideoUrlOrId] = useState("");
+  const [tutVideoType, setTutVideoType] = useState<"video" | "short">("video");
+
+  // FAQ Form State
+  const [faqQuestion, setFaqQuestion] = useState("");
+  const [faqAnswer, setFaqAnswer] = useState("");
+  const [faqs, setFaqs] = useState<any[]>([]);
+
   // Coupon Form State
   const [couponCode, setCouponCode] = useState("");
   const [couponDiscountType, setCouponDiscountType] = useState<"PERCENT" | "FIXED">("PERCENT");
   const [couponDiscountValue, setCouponDiscountValue] = useState(100);
-  const [couponApplicablePlan, setCouponApplicablePlan] = useState("ALL");
+  const [selectedCouponPlans, setSelectedCouponPlans] = useState<string[]>([]);
+  const [couponIsOneTimeUse, setCouponIsOneTimeUse] = useState(true);
   const [couponDeployedTo, setCouponDeployedTo] = useState("");
   const [coupons, setCoupons] = useState<Coupon[]>([]);
 
@@ -136,6 +149,17 @@ export default function AdminPage() {
       console.error("Failed to fetch coupons in admin panel:", err);
     }
   };
+  const fetchFaqs = async () => {
+    try {
+      const res = await fetch("/api/faqs");
+      const data = await res.json();
+      if (res.ok) {
+        setFaqs(data.faqs || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch FAQs in admin panel:", err);
+    }
+  };
 
   useEffect(() => {
     if (isAuthorized) {
@@ -143,8 +167,69 @@ export default function AdminPage() {
       fetchPosts();
       fetchResources();
       fetchCoupons();
+      fetchFaqs();
     }
   }, [isAuthorized]);
+
+  const handleCreateTutorialVideo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatus(null);
+
+    if (!tutVideoTitle || !tutVideoDescription || !tutVideoUrlOrId) {
+      setStatus({ type: "error", message: "Please fill in all required fields." });
+      return;
+    }
+
+    // Dynamic release date month
+    const d = new Date();
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const releasedAt = `${months[d.getMonth()]} ${d.getFullYear()}`;
+
+    // Extract youtube video ID if URL is provided
+    let finalVideoId = tutVideoUrlOrId.trim();
+    if (finalVideoId.includes("youtube.com") || finalVideoId.includes("youtu.be")) {
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = finalVideoId.match(regExp);
+      if (match && match[2].length === 11) {
+        finalVideoId = match[2];
+      }
+    }
+
+    try {
+      const res = await fetch("/api/videos", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-passcode": passcode,
+        },
+        body: JSON.stringify({
+          title: tutVideoTitle,
+          description: tutVideoDescription,
+          youtubeUrlOrId: finalVideoId,
+          type: tutVideoType,
+          category: "Tutorials",
+          duration: "10:00", // Default duration placeholder
+          releasedAt,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to publish video tutorial");
+      }
+
+      setStatus({ type: "success", message: "Video tutorial published successfully!" });
+      // Clear inputs
+      setTutVideoTitle("");
+      setTutVideoDescription("");
+      setTutVideoUrlOrId("");
+      fetchVideos();
+    } catch (err) {
+      console.error(err);
+      const message = err instanceof Error ? err.message : "Failed to publish video tutorial.";
+      setStatus({ type: "error", message });
+    }
+  };
 
   const handleDeleteVideo = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this video?")) return;
@@ -215,6 +300,55 @@ export default function AdminPage() {
     }
   };
 
+  const handleCreateFaq = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatus(null);
+    if (!faqQuestion || !faqAnswer) {
+      setStatus({ type: "error", message: "Question and Answer are required." });
+      return;
+    }
+    try {
+      const res = await fetch("/api/faqs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-passcode": passcode,
+        },
+        body: JSON.stringify({ question: faqQuestion, answer: faqAnswer })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create FAQ");
+      }
+      setStatus({ type: "success", message: "FAQ published successfully!" });
+      setFaqQuestion("");
+      setFaqAnswer("");
+      fetchFaqs();
+    } catch (err: any) {
+      setStatus({ type: "error", message: err.message || "Failed to create FAQ." });
+    }
+  };
+
+  const handleDeleteFaq = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this FAQ?")) return;
+    try {
+      const res = await fetch(`/api/faqs?id=${id}`, {
+        method: "DELETE",
+        headers: {
+          "x-admin-passcode": passcode,
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete FAQ");
+      }
+      setStatus({ type: "success", message: "FAQ deleted successfully." });
+      fetchFaqs();
+    } catch (err: any) {
+      setStatus({ type: "error", message: err.message || "Failed to delete FAQ." });
+    }
+  };
+
   const handleCreateCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus(null);
@@ -225,6 +359,7 @@ export default function AdminPage() {
     }
 
     try {
+      const planValue = selectedCouponPlans.length > 0 ? selectedCouponPlans.join(",") : "ALL";
       const res = await fetch("/api/coupons", {
         method: "POST",
         headers: {
@@ -235,7 +370,8 @@ export default function AdminPage() {
           code: couponCode,
           discountType: couponDiscountType,
           discountValue: Number(couponDiscountValue),
-          applicablePlan: couponApplicablePlan,
+          applicablePlan: planValue,
+          isOneTimeUse: couponIsOneTimeUse,
           deployedTo: couponDeployedTo,
         }),
       });
@@ -249,7 +385,8 @@ export default function AdminPage() {
       setCouponCode("");
       setCouponDiscountType("PERCENT");
       setCouponDiscountValue(100);
-      setCouponApplicablePlan("ALL");
+      setSelectedCouponPlans([]);
+      setCouponIsOneTimeUse(true);
       setCouponDeployedTo("");
       fetchCoupons();
     } catch (err) {
@@ -354,12 +491,14 @@ export default function AdminPage() {
   };
 
   const handleUpdateCouponPlan = async (id: string, currentPlan: string) => {
-    const newPlanStr = window.prompt("Enter applicable plan (ALL, MONTHLY, THREE_MONTH, or ANNUAL):", currentPlan);
+    const newPlanStr = window.prompt("Enter applicable plan(s) (ALL, MONTHLY, THREE_MONTH, or ANNUAL; separate multiple with commas):", currentPlan);
     if (newPlanStr === null) return;
     const cleanPlan = newPlanStr.trim().toUpperCase();
     const VALID_PLANS = ["ALL", "MONTHLY", "THREE_MONTH", "ANNUAL"];
-    if (!VALID_PLANS.includes(cleanPlan)) {
-      alert("Invalid plan. Must be ALL, MONTHLY, THREE_MONTH, or ANNUAL.");
+    const inputPlans = cleanPlan.split(",").map(p => p.trim());
+    const allValid = inputPlans.every(p => VALID_PLANS.includes(p));
+    if (!allValid) {
+      alert("Invalid plan list. Allowed plans are: ALL, MONTHLY, THREE_MONTH, and ANNUAL.");
       return;
     }
 
@@ -641,7 +780,7 @@ export default function AdminPage() {
             <form onSubmit={handleVerifyPasscode} style={{ maxWidth: "360px", margin: "0 auto" }}>
               <input 
                 type="password"
-                placeholder="Enter passcode (e.g. NAVIGATE_ADMIN)"
+                placeholder="Enter passcode"
                 value={passcode}
                 onChange={(e) => setPasscode(e.target.value)}
                 style={{
@@ -735,6 +874,24 @@ export default function AdminPage() {
                 }}
               >
                 🎬 Publish Video
+              </button>
+              <button
+                onClick={() => { setActiveTab("faq"); setStatus(null); }}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: activeTab === "faq" ? "3px solid var(--primary)" : "3px solid transparent",
+                  color: activeTab === "faq" ? "var(--primary)" : "var(--foreground)",
+                  fontWeight: 700,
+                  fontSize: "1.05rem",
+                  cursor: "pointer",
+                  opacity: activeTab === "faq" ? 1 : 0.6,
+                  transition: "all 0.2s"
+                }}
+              >
+                📋 Publish Tutorials & FAQs
               </button>
               <button
                 onClick={() => { setActiveTab("coupon"); setStatus(null); }}
@@ -1220,6 +1377,29 @@ export default function AdminPage() {
                   />
                 </div>
 
+                <div style={{ marginBottom: "1.5rem" }}>
+                  <label htmlFor="video-type" style={{ display: "block", fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.5rem", opacity: 0.8 }}>
+                    Video Orientation / Format *
+                  </label>
+                  <select
+                    id="video-type"
+                    value={videoType}
+                    onChange={(e) => setVideoType(e.target.value as "video" | "short")}
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(0, 0, 0, 0.25)",
+                      background: "#ffffff",
+                      color: "#000000",
+                      fontSize: "0.95rem"
+                    }}
+                  >
+                    <option value="video">Landscape Format (16:9)</option>
+                    <option value="short">Portrait Format (9:16 Short)</option>
+                  </select>
+                </div>
+
                 {/* Collapsible Advanced Settings (Optional) */}
                 <button
                   type="button"
@@ -1242,29 +1422,7 @@ export default function AdminPage() {
 
                 {showAdvancedVideo && (
                   <div className="animate-slide-up" style={{ padding: "1.5rem", borderRadius: "12px", background: "rgba(255,255,255,0.02)", border: "1px dashed var(--glass-border)", marginBottom: "2rem" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem", marginBottom: "1.5rem" }}>
-                      <div>
-                        <label htmlFor="video-type" style={{ display: "block", fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.5rem", opacity: 0.8 }}>
-                          Format *
-                        </label>
-                        <select
-                          id="video-type"
-                          value={videoType}
-                          onChange={(e) => setVideoType(e.target.value as "video" | "short")}
-                          style={{
-                            width: "100%",
-                            padding: "12px",
-                            borderRadius: "8px",
-                            border: "1px solid rgba(0, 0, 0, 0.25)",
-                            background: "#ffffff",
-                            color: "#000000",
-                            fontSize: "0.95rem"
-                          }}
-                        >
-                          <option value="video">Widescreen Video (16:9)</option>
-                          <option value="short">YouTube Short (9:16)</option>
-                        </select>
-                      </div>
+                    <div style={{ marginBottom: "1.5rem" }}>
                       <div>
                         <label htmlFor="video-category" style={{ display: "block", fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.5rem", opacity: 0.8 }}>
                           Topic Category *
@@ -1288,6 +1446,7 @@ export default function AdminPage() {
                           <option value="SMART Goals">SMART Goals</option>
                           <option value="PWNs">PWNs</option>
                           <option value="Parent Rights">Parent Rights</option>
+                          <option value="Tutorials">Tutorials</option>
                         </select>
                       </div>
                     </div>
@@ -1425,6 +1584,234 @@ export default function AdminPage() {
                   ))}
                 </div>
               )}
+             </div>
+          ) : activeTab === "faq" ? (
+            <div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem", marginBottom: "3rem" }}>
+                {/* Tutorial Video Form */}
+                <div style={{ background: "rgba(255, 255, 255, 0.01)", border: "1px solid var(--glass-border)", padding: "1.5rem", borderRadius: "12px" }}>
+                  <h3 style={{ fontSize: "1.25rem", fontWeight: 700, marginBottom: "1.5rem", color: "var(--primary)" }}>🎬 Publish Video Tutorial</h3>
+                  <form onSubmit={handleCreateTutorialVideo}>
+                    <div style={{ marginBottom: "1rem" }}>
+                      <label htmlFor="tut-video-title" style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.5rem", opacity: 0.8 }}>
+                        Video Title *
+                      </label>
+                      <input 
+                        id="tut-video-title"
+                        type="text" 
+                        placeholder="e.g. Chapter 60 IEP Timeline Walkthrough"
+                        value={tutVideoTitle}
+                        onChange={(e) => setTutVideoTitle(e.target.value)}
+                        style={{
+                          width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid rgba(0, 0, 0, 0.25)",
+                          background: "#ffffff", color: "#000000", fontSize: "0.9rem"
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ marginBottom: "1rem" }}>
+                      <label htmlFor="tut-video-desc" style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.5rem", opacity: 0.8 }}>
+                        Description *
+                      </label>
+                      <input 
+                        id="tut-video-desc"
+                        type="text" 
+                        placeholder="e.g. A visual walkthrough of the 60-day evaluation timeline rule in Hawaii."
+                        value={tutVideoDescription}
+                        onChange={(e) => setTutVideoDescription(e.target.value)}
+                        style={{
+                          width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid rgba(0, 0, 0, 0.25)",
+                          background: "#ffffff", color: "#000000", fontSize: "0.9rem"
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ marginBottom: "1rem" }}>
+                      <label htmlFor="tut-video-url" style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.5rem", opacity: 0.8 }}>
+                        YouTube URL or ID *
+                      </label>
+                      <input 
+                        id="tut-video-url"
+                        type="text" 
+                        placeholder="e.g. https://youtu.be/ysz5S6PUM-U"
+                        value={tutVideoUrlOrId}
+                        onChange={(e) => setTutVideoUrlOrId(e.target.value)}
+                        style={{
+                          width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid rgba(0, 0, 0, 0.25)",
+                          background: "#ffffff", color: "#000000", fontSize: "0.9rem"
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ marginBottom: "1.5rem" }}>
+                      <label htmlFor="tut-video-type" style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.5rem", opacity: 0.8 }}>
+                        Video Orientation / Format *
+                      </label>
+                      <select
+                        id="tut-video-type"
+                        value={tutVideoType}
+                        onChange={(e) => setTutVideoType(e.target.value as "video" | "short")}
+                        style={{
+                          width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid rgba(0, 0, 0, 0.25)",
+                          background: "#ffffff", color: "#000000", fontSize: "0.9rem", cursor: "pointer"
+                        }}
+                      >
+                        <option value="video">Landscape Format (16:9)</option>
+                        <option value="short">Portrait Format (9:16 Shorts)</option>
+                      </select>
+                    </div>
+
+                    <button
+                      type="submit"
+                      style={{
+                        width: "100%", padding: "12px", borderRadius: "6px", background: "var(--primary)",
+                        color: "white", fontWeight: 700, fontSize: "0.95rem", border: "none", cursor: "pointer"
+                      }}
+                    >
+                      Publish Video Tutorial
+                    </button>
+                  </form>
+                </div>
+
+                {/* FAQ Form */}
+                <div style={{ background: "rgba(255, 255, 255, 0.01)", border: "1px solid var(--glass-border)", padding: "1.5rem", borderRadius: "12px" }}>
+                  <h3 style={{ fontSize: "1.25rem", fontWeight: 700, marginBottom: "1.5rem", color: "var(--primary)" }}>📋 Publish FAQ Item</h3>
+                  <form onSubmit={handleCreateFaq}>
+                    <div style={{ marginBottom: "1rem" }}>
+                      <label htmlFor="faq-question" style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.5rem", opacity: 0.8 }}>
+                        FAQ Question *
+                      </label>
+                      <input 
+                        id="faq-question"
+                        type="text" 
+                        placeholder="e.g. What is stay-put under HAR Chapter 60?"
+                        value={faqQuestion}
+                        onChange={(e) => setFaqQuestion(e.target.value)}
+                        style={{
+                          width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid rgba(0, 0, 0, 0.25)",
+                          background: "#ffffff", color: "#000000", fontSize: "0.9rem"
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ marginBottom: "2.35rem" }}>
+                      <label htmlFor="faq-answer" style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.5rem", opacity: 0.8 }}>
+                        FAQ Answer *
+                      </label>
+                      <textarea 
+                        id="faq-answer"
+                        placeholder="e.g. Stay-put is a legal safeguard that prevents the school from changing services..."
+                        value={faqAnswer}
+                        onChange={(e) => setFaqAnswer(e.target.value)}
+                        rows={6}
+                        style={{
+                          width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid rgba(0, 0, 0, 0.25)",
+                          background: "#ffffff", color: "#000000", fontSize: "0.9rem", resize: "vertical"
+                        }}
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      style={{
+                        width: "100%", padding: "12px", borderRadius: "6px", background: "var(--primary)",
+                        color: "white", fontWeight: 700, fontSize: "0.95rem", border: "none", cursor: "pointer"
+                      }}
+                    >
+                      Publish FAQ Item
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              <hr style={{ border: "none", borderTop: "1px solid var(--glass-border)", margin: "3rem 0" }} />
+
+              {/* Manage Section */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem" }}>
+                {/* List of Video Tutorials */}
+                <div>
+                  <h3 style={{ fontSize: "1.35rem", fontWeight: 700, marginBottom: "1.5rem", color: "var(--secondary)" }}>
+                    🎬 Published Video Tutorials
+                  </h3>
+                  {videos.filter(v => v.category === "Tutorials").length === 0 ? (
+                    <p style={{ opacity: 0.6, fontStyle: "italic" }}>No video tutorials found in the database.</p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                      {videos.filter(v => v.category === "Tutorials").map((video) => (
+                        <div 
+                          key={video.id}
+                          style={{
+                            display: "flex", alignItems: "center", justifyContent: "space-between",
+                            padding: "1rem", borderRadius: "8px", background: "rgba(255, 255, 255, 0.02)",
+                            border: "1px solid var(--glass-border)", gap: "1rem"
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <h4 style={{ fontWeight: 700, margin: 0, fontSize: "1rem", color: "var(--primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {video.title}
+                            </h4>
+                            <p style={{ margin: "2px 0 0", fontSize: "0.8rem", opacity: 0.6 }}>
+                              Format: {video.type === "short" ? "Portrait (9:16 Short)" : "Landscape (16:9 Video)"}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteVideo(video.id)}
+                            style={{
+                              padding: "4px 10px", borderRadius: "12px", border: "1px solid rgba(239, 68, 68, 0.4)",
+                              background: "rgba(239, 68, 68, 0.1)", color: "#f87171", cursor: "pointer",
+                              fontSize: "0.75rem", fontWeight: 600, flexShrink: 0
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* List of FAQs */}
+                <div>
+                  <h3 style={{ fontSize: "1.35rem", fontWeight: 700, marginBottom: "1.5rem", color: "var(--secondary)" }}>
+                    📋 Published FAQs
+                  </h3>
+                  {faqs.length === 0 ? (
+                    <p style={{ opacity: 0.6, fontStyle: "italic" }}>No FAQs found in the database.</p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                      {faqs.map((faq) => (
+                        <div 
+                          key={faq.id}
+                          style={{
+                            display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+                            padding: "1rem", borderRadius: "8px", background: "rgba(255, 255, 255, 0.02)",
+                            border: "1px solid var(--glass-border)", gap: "1rem"
+                          }}
+                        >
+                          <div style={{ flex: 1 }}>
+                            <h4 style={{ fontWeight: 700, margin: 0, fontSize: "1rem", color: "var(--primary)" }}>Q: {faq.question}</h4>
+                            <p style={{ margin: "4px 0 0", fontSize: "0.85rem", opacity: 0.7, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                              A: {faq.answer}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFaq(faq.id)}
+                            style={{
+                              padding: "4px 10px", borderRadius: "12px", border: "1px solid rgba(239, 68, 68, 0.4)",
+                              background: "rgba(239, 68, 68, 0.1)", color: "#f87171", cursor: "pointer",
+                              fontSize: "0.75rem", fontWeight: 600, flexShrink: 0
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           ) : (
             <div>
@@ -1501,13 +1888,67 @@ export default function AdminPage() {
                   </div>
 
                   <div>
-                    <label htmlFor="coupon-plan" style={{ display: "block", fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.5rem", opacity: 0.8 }}>
-                      Applicable Plan *
+                    <label style={{ display: "block", fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.5rem", opacity: 0.8 }}>
+                      Applicable Plan(s) * (Select one or more; none implies ALL)
                     </label>
-                    <select
-                      id="coupon-plan"
-                      value={couponApplicablePlan}
-                      onChange={(e) => setCouponApplicablePlan(e.target.value)}
+                    <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", padding: "8px 0" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.9rem", cursor: "pointer", color: "#000000" }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedCouponPlans.includes("MONTHLY")}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedCouponPlans(prev => [...prev, "MONTHLY"]);
+                            } else {
+                              setSelectedCouponPlans(prev => prev.filter(x => x !== "MONTHLY"));
+                            }
+                          }}
+                        />
+                        Monthly
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.9rem", cursor: "pointer", color: "#000000" }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedCouponPlans.includes("THREE_MONTH")}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedCouponPlans(prev => [...prev, "THREE_MONTH"]);
+                            } else {
+                              setSelectedCouponPlans(prev => prev.filter(x => x !== "THREE_MONTH"));
+                            }
+                          }}
+                        />
+                        3-Month
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.9rem", cursor: "pointer", color: "#000000" }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedCouponPlans.includes("ANNUAL")}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedCouponPlans(prev => [...prev, "ANNUAL"]);
+                            } else {
+                              setSelectedCouponPlans(prev => prev.filter(x => x !== "ANNUAL"));
+                            }
+                          }}
+                        />
+                        Annual
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem", marginBottom: "1.5rem" }}>
+                  <div>
+                    <label htmlFor="coupon-deployment" style={{ display: "block", fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.5rem", opacity: 0.8 }}>
+                      Deployed To (e.g. sticker, flyer)
+                    </label>
+                    <input 
+                      id="coupon-deployment"
+                      type="text" 
+                      placeholder="e.g. Sticker QR Code"
+                      value={couponDeployedTo}
+                      onChange={(e) => setCouponDeployedTo(e.target.value)}
                       style={{
                         width: "100%",
                         padding: "12px",
@@ -1517,35 +1958,20 @@ export default function AdminPage() {
                         color: "#000000",
                         fontSize: "0.95rem"
                       }}
-                    >
-                      <option value="ALL">All Plans</option>
-                      <option value="MONTHLY">Monthly ($19.99/mo)</option>
-                      <option value="THREE_MONTH">3-Month IEP Season ($49.99)</option>
-                      <option value="ANNUAL">Annual ($149.99/yr)</option>
-                    </select>
+                    />
                   </div>
-                </div>
 
-                <div style={{ marginBottom: "1.5rem" }}>
-                  <label htmlFor="coupon-deployment" style={{ display: "block", fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.5rem", opacity: 0.8 }}>
-                    Deployed To (e.g. QR code on sticker, flyer, facebook)
-                  </label>
-                  <input 
-                    id="coupon-deployment"
-                    type="text" 
-                    placeholder="e.g. Sticker QR Code"
-                    value={couponDeployedTo}
-                    onChange={(e) => setCouponDeployedTo(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "12px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(0, 0, 0, 0.25)",
-                      background: "#ffffff",
-                      color: "#000000",
-                      fontSize: "0.95rem"
-                    }}
-                  />
+                  <div style={{ display: "flex", alignItems: "center", paddingTop: "1.5rem" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.9rem", fontWeight: 600, cursor: "pointer", color: "#000000" }}>
+                      <input 
+                        type="checkbox"
+                        checked={couponIsOneTimeUse}
+                        onChange={(e) => setCouponIsOneTimeUse(e.target.checked)}
+                        style={{ width: "16px", height: "16px" }}
+                      />
+                      One-Time Use Only
+                    </label>
+                  </div>
                 </div>
 
                 <button
@@ -1623,8 +2049,11 @@ export default function AdminPage() {
                             </span>
                             <span>
                               📋 Plan: <strong style={{ color: "var(--primary)", cursor: "pointer", textDecoration: "underline" }} onClick={() => handleUpdateCouponPlan(coupon.id, coupon.applicablePlan)}>
-                                {coupon.applicablePlan === "ALL" ? "All Plans" : coupon.applicablePlan === "MONTHLY" ? "Monthly" : coupon.applicablePlan === "THREE_MONTH" ? "3-Month" : "Annual"}
+                                {coupon.applicablePlan.split(",").map(p => p === "ALL" ? "All Plans" : p === "MONTHLY" ? "Monthly" : p === "THREE_MONTH" ? "3-Month" : "Annual").join(", ")}
                               </strong>
+                            </span>
+                            <span>
+                              🔄 Type: <strong>{coupon.isOneTimeUse ? "One-Time Use" : "General/Multi-Use"}</strong>
                             </span>
                             <span>
                               📍 Deployed to: <span style={{ fontStyle: "italic", cursor: "pointer", textDecoration: "underline" }} onClick={() => handleUpdateCouponDeployment(coupon.id, coupon.deployedTo)}>{coupon.deployedTo || "Not specified (click to edit)"}</span>

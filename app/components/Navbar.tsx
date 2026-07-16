@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import ThemeToggle from "./ThemeToggle";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -46,7 +47,7 @@ export default function Navbar() {
 
             <Link
               href="/home" 
-              style={{ display: "flex", alignItems: "center", gap: "12px", outlineColor: "var(--primary)" }} 
+              style={{ display: "flex", alignItems: "center", gap: "12px", outlineColor: "var(--primary)", textDecoration: "none" }} 
               aria-label="Special Education Navigator Home"
               onClick={(e) => handleLinkClick(e, "/home")}
               target={isAdmin ? "_blank" : undefined}
@@ -65,8 +66,8 @@ export default function Navbar() {
                   objectFit: "cover"
                 }} 
               />
-              <span className="nav-title" style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.01em", color: "var(--foreground)" }}>
-                SpEd Navigator
+              <span className="nav-title" style={{ fontSize: "1.1rem", fontWeight: 700, letterSpacing: "-0.01em", color: "var(--foreground)", lineHeight: "1.2", display: "inline-block", textAlign: "center", textDecoration: "none" }}>
+                Special Education <br/> Navigator
               </span>
             </Link>
           </div>
@@ -82,22 +83,15 @@ export default function Navbar() {
               <Link href="/downloads" role="menuitem" className="nav-link" onClick={(e) => handleLinkClick(e, "/downloads")} target={isAdmin ? "_blank" : undefined} rel={isAdmin ? "noopener noreferrer" : undefined}>
                 Downloads
               </Link>
+              <Link href="/tutorials" role="menuitem" className="nav-link" onClick={(e) => handleLinkClick(e, "/tutorials")} target={isAdmin ? "_blank" : undefined} rel={isAdmin ? "noopener noreferrer" : undefined}>
+                App Help
+              </Link>
               <Link href="/videos" role="menuitem" className="nav-link" onClick={(e) => handleLinkClick(e, "/videos")} target={isAdmin ? "_blank" : undefined} rel={isAdmin ? "noopener noreferrer" : undefined}>
                 Videos
               </Link>
-              <Link
-                href="/demo" 
-                role="menuitem" 
-                style={{ color: "var(--foreground)", fontWeight: 500, fontSize: "0.95rem", padding: "6px 12px", background: "var(--primary-glow)", border: "1px solid var(--primary)", borderRadius: "20px", textDecoration: "none", transition: "all var(--transition-fast)" }} 
-                onMouseOver={(e) => e.currentTarget.style.filter = "brightness(1.1)"} 
-                onMouseOut={(e) => e.currentTarget.style.filter = "none"}
-                onClick={(e) => handleLinkClick(e, "/demo")}
-                target={isAdmin ? "_blank" : undefined}
-                rel={isAdmin ? "noopener noreferrer" : undefined}
-              >
-                Try Demo
-              </Link>
             </div>
+
+            <ThemeToggle />
 
             <Link
               href="/" 
@@ -156,12 +150,15 @@ export default function Navbar() {
           <Link href="/downloads" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             📥 Downloads
           </Link>
+          <Link href="/tutorials" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+            📖 App Help
+          </Link>
           <Link href="/videos" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             🎥 Videos
           </Link>
-          <Link href="/demo" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
-            🧪 Try Demo
-          </Link>
+          <div style={{ display: "flex", justifyContent: "center", padding: "1rem 0 0.5rem" }}>
+            <ThemeToggle />
+          </div>
         </div>
       )}
     </>

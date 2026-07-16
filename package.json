@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
-    "build:mobile": "mv app/api ./api-temp; CAPACITOR_BUILD=true NEXT_PUBLIC_API_URL=https://www.thespecialeducationnavigator.app npm run build; mv ./api-temp app/api; npx cap sync",
+    "build:mobile": "mv app/api ./api-temp; CAPACITOR_BUILD=true npm run build; mv ./api-temp app/api; npx cap sync",
     "start": "next start",
     "lint": "eslint .",
     "test:api": "node scripts/test-extraction.js",
@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@capacitor/core": "^8.3.0",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/share": "^8.0.1",
     "@codetrix-studio/capacitor-google-auth": "^3.4.0-rc.4",
     "@ducanh2912/next-pwa": "^10.2.9",
     "@google/generative-ai": "^0.24.1",

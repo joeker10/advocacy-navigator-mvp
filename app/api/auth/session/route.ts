@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
 
     // Determine final subscription status, inheriting from parent if linked
     let subscriptionStatus = user.subscriptionStatus;
+    let subscriptionTier = user.subscriptionTier;
+    let profileLimit = user.profileLimit;
     let parentEmail = null;
     if (user.parentId) {
       const parent = await prisma.user.findUnique({
@@ -29,6 +31,8 @@ export async function GET(req: NextRequest) {
         parentEmail = parent.email;
         if (parent.subscriptionStatus === 'SUBSCRIBED') {
           subscriptionStatus = 'SUBSCRIBED';
+          subscriptionTier = parent.subscriptionTier;
+          profileLimit = parent.profileLimit;
         }
       }
     }
@@ -58,6 +62,8 @@ export async function GET(req: NextRequest) {
         id: user.id,
         email: user.email,
         subscriptionStatus,
+        subscriptionTier,
+        profileLimit,
         parentId: user.parentId,
         parentEmail,
         linkedAccounts: linkedAccounts || [],

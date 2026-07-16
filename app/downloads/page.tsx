@@ -38,15 +38,41 @@ export default function DownloadsPage() {
     loadResources();
   }, []);
 
-  const handleDownload = (fileName: string, fileContent: string) => {
-    const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", fileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async (fileName: string, fileContent: string) => {
+    const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNative;
+    
+    if (isNative) {
+      try {
+        const { Filesystem, Directory } = require('@capacitor/filesystem');
+        const { Share } = require('@capacitor/share');
+        
+        const base64data = btoa(unescape(encodeURIComponent(fileContent)));
+        
+        const writeResult = await Filesystem.writeFile({
+          path: fileName,
+          data: base64data,
+          directory: Directory.Cache
+        });
+        
+        await Share.share({
+          title: `Download ${fileName}`,
+          url: writeResult.uri
+        });
+      } catch (err: any) {
+        console.error("Native download error:", err);
+        alert(`Failed to save template: ${err.message || err}`);
+      }
+    } else {
+      const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
   };
 
   return (

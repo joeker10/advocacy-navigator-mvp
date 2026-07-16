@@ -41,7 +41,7 @@ export default function HomePage() {
           </p>
           <div style={{ marginTop: "2.5rem", display: "flex", gap: "16px", justifyContent: "center" }}>
             <a 
-              href="/demo" 
+              href="/" 
               style={{ 
                 padding: "12px 28px", 
                 borderRadius: "30px", 
@@ -52,7 +52,7 @@ export default function HomePage() {
                 boxShadow: "0 4px 14px var(--primary-glow)" 
               }}
             >
-              Try Interactive Demo
+              Launch Web App
             </a>
             <a 
               href="/downloads" 

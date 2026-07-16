@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { code, discountType, discountValue, applicablePlan, deployedTo } = body;
+    const { code, discountType, discountValue, applicablePlan, isOneTimeUse, deployedTo } = body;
 
     // Verify admin passcode from header
     const passcodeHeader = req.headers.get("x-admin-passcode");
@@ -50,7 +50,10 @@ export async function POST(req: NextRequest) {
     // If percent, cap at 100%
     const finalValue = type === "PERCENT" ? Math.min(100, value) : value;
 
-    const plan = VALID_PLANS.includes(applicablePlan) ? applicablePlan : "ALL";
+    // Support comma-separated combinations of plans
+    const planParts = applicablePlan ? applicablePlan.split(",").map((p: string) => p.trim().toUpperCase()) : ["ALL"];
+    const isValidPlan = planParts.every((p: string) => ["ALL", "MONTHLY", "THREE_MONTH", "ANNUAL"].includes(p));
+    const plan = isValidPlan ? planParts.join(",") : "ALL";
 
     // Check if coupon code already exists
     const existing = await prisma.coupon.findUnique({
@@ -70,6 +73,7 @@ export async function POST(req: NextRequest) {
         discountType: type,
         discountValue: finalValue,
         applicablePlan: plan,
+        isOneTimeUse: typeof isOneTimeUse === "boolean" ? isOneTimeUse : true,
         deployedTo: deployedTo || "",
         isActive: true,
       },
@@ -89,7 +93,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, discountType, discountValue, applicablePlan, deployedTo, isActive } = body;
+    const { id, discountType, discountValue, applicablePlan, isOneTimeUse, deployedTo, isActive } = body;
 
     // Verify admin passcode from header
     const passcodeHeader = req.headers.get("x-admin-passcode");
@@ -114,8 +118,16 @@ export async function PATCH(req: NextRequest) {
       updateData.discountValue = value;
     }
 
-    if (applicablePlan && VALID_PLANS.includes(applicablePlan)) {
-      updateData.applicablePlan = applicablePlan;
+    if (applicablePlan) {
+      const planParts = applicablePlan.split(",").map((p: string) => p.trim().toUpperCase());
+      const isValidPlan = planParts.every((p: string) => ["ALL", "MONTHLY", "THREE_MONTH", "ANNUAL"].includes(p));
+      if (isValidPlan) {
+        updateData.applicablePlan = planParts.join(",");
+      }
+    }
+
+    if (typeof isOneTimeUse === "boolean") {
+      updateData.isOneTimeUse = isOneTimeUse;
     }
 
     if (typeof deployedTo === "string") {

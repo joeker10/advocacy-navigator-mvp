@@ -56,6 +56,8 @@ model User {
   email              String    @unique
   passwordHash       String
   subscriptionStatus String    @default("UNSUBSCRIBED") // 'SUBSCRIBED', 'UNSUBSCRIBED'
+  subscriptionTier   String    @default("FREE")        // 'FREE', 'PARENT', 'PROFESSIONAL'
+  profileLimit       Int       @default(1)             // 1 for FREE, 3 for PARENT, 9999 for PROFESSIONAL
   parentId           String?   // Linked parent account for Family Discount tier
   createdAt          DateTime  @default(now())
   twoFactorEnabled   Boolean   @default(false)
@@ -64,6 +66,32 @@ model User {
   emailVerified      Boolean   @default(false)
   verificationToken  String?
   verificationExpires DateTime?
+  childProfiles      ChildProfile[]
+  savedInsights      SavedInsight[]
+}
+
+model ChildProfile {
+  id        String         @id
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  school    String?
+  grade     String?
+  dob       String?
+  createdAt DateTime       @default(now())
+  insights  SavedInsight[]
+}
+
+model SavedInsight {
+  id        String        @id
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  childId   String?
+  child     ChildProfile? @relation(fields: [childId], references: [id], onDelete: Cascade)
+  query     String
+  response  String
+  name      String?
+  timestamp DateTime      @default(now())
 }
 
 model Coupon {
@@ -73,6 +101,7 @@ model Coupon {
   discountType    String   @default("PERCENT") // "PERCENT" or "FIXED"
   discountValue   Float    @default(100.0)
   applicablePlan  String   @default("ALL")     // "ALL", "MONTHLY", "THREE_MONTH", "ANNUAL"
+  isOneTimeUse    Boolean  @default(true)
   deployedTo      String   @default("")
   createdAt       DateTime @default(now())
 }
@@ -106,4 +135,17 @@ model Video {
   duration    String   // e.g. '0:58' or '12:30'
   releasedAt  String   // e.g. 'June 2026'
   createdAt   DateTime @default(now())
+}
+
+model Faq {
+  id        String   @id @default(uuid())
+  question  String
+  answer    String
+  createdAt DateTime @default(now())
+}
+
+model NewsletterSubscriber {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  subscribedAt DateTime @default(now())
 }

@@ -62,12 +62,16 @@ export async function POST(req: NextRequest) {
 
     // Determine subscription status
     let subscriptionStatus = user.subscriptionStatus;
+    let subscriptionTier = user.subscriptionTier;
+    let profileLimit = user.profileLimit;
     if (user.parentId) {
       const parent = await prisma.user.findUnique({
         where: { id: user.parentId }
       });
       if (parent && parent.subscriptionStatus === 'SUBSCRIBED') {
         subscriptionStatus = 'SUBSCRIBED';
+        subscriptionTier = parent.subscriptionTier;
+        profileLimit = parent.profileLimit;
       }
     }
 
@@ -98,6 +102,8 @@ export async function POST(req: NextRequest) {
         id: user.id,
         email: user.email,
         subscriptionStatus,
+        subscriptionTier,
+        profileLimit,
         twoFactorEnabled: user.twoFactorEnabled,
         subscriptionExpiresAt
       }

@@ -54,10 +54,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Deactivate one-time database coupon
+    if (!isHardcoded && dbCoupon && dbCoupon.isOneTimeUse) {
+      await prisma.coupon.update({
+        where: { id: dbCoupon.id },
+        data: { isActive: false }
+      });
+    }
+
+    // Determine the tier and profile limit based on coupon code keywords
+    const isPro = normalizedCode.includes("PRO") || normalizedCode.includes("TEACHER") || normalizedCode.includes("ADVOCATE");
+    const subscriptionTier = isPro ? "PROFESSIONAL" : "PARENT";
+    const profileLimit = isPro ? 9999 : 3;
+
     // Upgrade user to SUBSCRIBED (100% discount applied)
     const updatedUser = await prisma.user.update({
       where: { id: payload.userId },
-      data: { subscriptionStatus: "SUBSCRIBED" },
+      data: { 
+        subscriptionStatus: "SUBSCRIBED",
+        subscriptionTier,
+        profileLimit
+      },
     });
 
     // Calculate subscription ending date (1 year from parent creation or own creation)
@@ -80,6 +97,8 @@ export async function POST(req: NextRequest) {
         id: updatedUser.id,
         email: updatedUser.email,
         subscriptionStatus: updatedUser.subscriptionStatus,
+        subscriptionTier: updatedUser.subscriptionTier,
+        profileLimit: updatedUser.profileLimit,
         subscriptionExpiresAt
       },
     });

@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: process.env.CAPACITOR_BUILD === 'true'
   },
-  allowedDevOrigins: ['10.56.56.251'],
+  allowedDevOrigins: ['10.56.56.251', '192.168.1.5'],
   outputFileTracingIncludes: {
     '**/*': ['./dev.db', './dev.db-wal', './dev.db-shm'],
     '/api/**/*': ['./dev.db', './dev.db-wal', './dev.db-shm'],
