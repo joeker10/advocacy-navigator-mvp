@@ -418,7 +418,7 @@ export default function Home() {
     }
   };
 
-  const API_URL = isNative ? (process.env.NEXT_PUBLIC_API_URL || "") : "";
+  const API_URL = isNative ? "https://www.thespecialeducationnavigator.app" : "";
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -676,48 +676,22 @@ export default function Home() {
 
   const handleGoogleLogin = async () => {
     setAuthError("");
-    const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNative;
-    
-    if (isNative) {
-      try {
-        const { GoogleAuth } = require('@codetrix-studio/capacitor-google-auth');
-        const userResult = await GoogleAuth.signIn();
-        if (userResult && userResult.authentication.idToken) {
-          const res = await fetch(`${API_URL}/api/auth/google`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ idToken: userResult.authentication.idToken })
-          });
-          const data = await res.json();
-          if (data.success && data.token) {
-            localStorage.setItem("spednav_auth_token", data.token);
-            setToken(data.token);
-            setUser(data.user);
-            setIsAuthenticated(true);
-            setAuthEmail("");
-            setAuthPassword("");
-            syncWithServer(data.token);
-          } else {
-            setAuthError(data.error || "Google authentication failed.");
-          }
-        } else {
-          setAuthError("Google Sign-In was cancelled or failed to retrieve token.");
-        }
-      } catch (err: any) {
-        setAuthError("Google Native Sign-In Error: " + (err.message || err));
-      }
-    } else {
-      const testEmail = prompt("Enter email to mock Google Sign-In (Local Testing):", "testgoogle@example.com");
-      if (!testEmail) return;
-      if (!testEmail.includes("@")) {
-        alert("Please enter a valid email address.");
-        return;
-      }
-      try {
+    try {
+      const { GoogleAuth } = require('@codetrix-studio/capacitor-google-auth');
+      
+      // Ensure initialized for web. Native ignores this or uses capacitor.config.ts
+      GoogleAuth.initialize({
+        clientId: '76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com',
+        scopes: ['profile', 'email'],
+        grantOfflineAccess: true,
+      });
+
+      const userResult = await GoogleAuth.signIn();
+      if (userResult && userResult.authentication.idToken) {
         const res = await fetch(`${API_URL}/api/auth/google`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idToken: `mock_token_${testEmail.toLowerCase().trim()}` })
+          body: JSON.stringify({ idToken: userResult.authentication.idToken })
         });
         const data = await res.json();
         if (data.success && data.token) {
@@ -729,11 +703,14 @@ export default function Home() {
           setAuthPassword("");
           syncWithServer(data.token);
         } else {
-          setAuthError(data.error || "Mock Google login failed.");
+          setAuthError(data.error || "Google authentication failed.");
         }
-      } catch (err) {
-        setAuthError("Failed to connect to authentication server for Mock Google login.");
+      } else {
+        setAuthError("Google Sign-In was cancelled or failed to retrieve token.");
       }
+    } catch (err: any) {
+      console.error(err);
+      setAuthError("Google Sign-In Error: " + (err.message || err));
     }
   };
 
@@ -1522,8 +1499,8 @@ export default function Home() {
   // Authentication View
   if (!isAuthenticated) {
     return (
-      <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem" }}>
-        <div className="glass-panel animate-slide-up" style={{ width: "100%", maxWidth: "440px", padding: "2.5rem" }}>
+      <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "0.4rem" }}>
+        <div className="glass-panel animate-slide-up" style={{ width: "100%", maxWidth: "480px", padding: "2.5rem" }}>
           <div style={{ textAlign: "center", marginBottom: "2rem" }}>
             <img 
               src="/navigator-logo.jpg" 
@@ -1708,8 +1685,8 @@ export default function Home() {
                     }}
                     style={{ width: "18px", height: "18px", marginTop: "2px", cursor: "pointer", accentColor: "var(--primary)" }}
                   />
-                  <label htmlFor="register-newsletter" style={{ fontSize: "0.85rem", opacity: 0.8, cursor: "pointer", lineHeight: "1.4" }}>
-                    Subscribe to free advocacy tips & updates newsletter from <strong>joe@<wbr />thespecialeducationnavigator.app</strong>
+                  <label htmlFor="register-newsletter" style={{ fontSize: "0.75rem", opacity: 0.8, cursor: "pointer", lineHeight: "1.5" }}>
+                    Subscribe to free advocacy tips & updates newsletter<br />from <strong>joe@thespecialeducationnavigator.app</strong>
                   </label>
                 </div>
               )}

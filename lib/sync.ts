@@ -2,7 +2,7 @@ import { getChildProfiles, getSavedInsights, getDB } from './indexeddb';
 
 const getApiUrl = () => {
   const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNative;
-  return isNative ? (process.env.NEXT_PUBLIC_API_URL || "") : "";
+  return isNative ? "https://www.thespecialeducationnavigator.app" : "";
 };
 
 export async function syncItem(type: 'profile' | 'insight', item: any) {
