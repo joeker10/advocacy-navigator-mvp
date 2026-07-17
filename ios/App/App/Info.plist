@@ -51,5 +51,16 @@
 	<string>This app requires camera access to scan and OCR educational documents and IEP matrices.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app requires microphone access to record and transcribe IEP meetings.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.76978043008-5riscv5374dum0a66mamauu2vnsovlb8</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

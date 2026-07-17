@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthenticatedUser } from '@/lib/auth';
 
+
 // 1. GET: Fetch all profiles and insights for the logged-in user
 export async function GET(req: NextRequest) {
   try {

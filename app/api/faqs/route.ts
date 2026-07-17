@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import fs from "fs";
 import path from "path";
 
+
 const DEFAULT_FAQS = [
   {
     question: "How do I use the AI Advocate to analyze my child's IEP documents?",
