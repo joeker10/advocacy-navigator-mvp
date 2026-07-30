@@ -3019,6 +3019,8 @@ export default function Home() {
             </div>
           </div>
         </div>
+      )}
+
       {/* Google Doc Import Modal Overlay */}
       {isGoogleDocModalOpen && (
         <div style={{
