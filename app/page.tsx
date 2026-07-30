@@ -335,6 +335,7 @@ export default function Home() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [googleDocUrl, setGoogleDocUrl] = useState("");
   const [isImportingGoogleDoc, setIsImportingGoogleDoc] = useState(false);
+  const [isGoogleDocModalOpen, setIsGoogleDocModalOpen] = useState(false);
   const [childProfiles, setChildProfiles] = useState<any[]>([]);
   const [selectedChildId, setSelectedChildId] = useState<string>("general");
   const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNative;
