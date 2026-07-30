@@ -1501,7 +1501,12 @@ export default function Home() {
     return (
       <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "0.4rem" }}>
         <div className="glass-panel animate-slide-up" style={{ width: "100%", maxWidth: "480px", padding: "2.5rem" }}>
-          <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+          <div style={{ textAlign: "center", marginBottom: "2rem", position: "relative" }}>
+            <div style={{ position: "absolute", top: "-1rem", right: "0", opacity: 0.15, pointerEvents: "none" }}>
+              <svg width="48" height="48" viewBox="0 0 100 100" fill="var(--primary)">
+                <path d="M50 10 C30 30 10 60 50 90 C90 60 70 30 50 10 Z" />
+              </svg>
+            </div>
             <img 
               src="/navigator-logo.jpg" 
               alt="Logo" 
@@ -2399,6 +2404,21 @@ export default function Home() {
               >
                 {isRecording ? "⏹ Stop Recording" : "🎙️ Record Audio"}
               </button>
+
+              <button 
+                onClick={() => setIsGoogleDocModalOpen(true)}
+                disabled={isUploading || user?.subscriptionStatus !== 'SUBSCRIBED'}
+                style={{
+                  flex: "1 1 180px", padding: "1rem", borderRadius: "16px",
+                  background: "var(--surface)", border: "1px solid var(--border)",
+                  color: "var(--foreground)", fontSize: "1rem", fontWeight: 600,
+                  cursor: (isUploading || user?.subscriptionStatus !== 'SUBSCRIBED') ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                  transition: "all 0.2s",
+                  opacity: user?.subscriptionStatus !== 'SUBSCRIBED' ? 0.5 : 1
+                }}
+              >
+                📄 Import Google Doc
+              </button>
             </div>
             
             <div style={{ padding: "1rem", borderRadius: "12px", background: "hsla(0, 0%, 50%, 0.1)", border: "1px solid var(--border)" }}>
@@ -2989,6 +3009,85 @@ export default function Home() {
                 onClick={stopCamera}
                 style={{
                   flex: 1, padding: "1rem", borderRadius: "12px",
+                  background: "var(--surface)", border: "1px solid var(--border)",
+                  color: "var(--foreground)", fontWeight: 650, fontSize: "1rem",
+                  cursor: "pointer"
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      {/* Google Doc Import Modal Overlay */}
+      {isGoogleDocModalOpen && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)",
+          zIndex: 200, display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", padding: "2rem"
+        }} onClick={() => setIsGoogleDocModalOpen(false)}>
+          <div className="glass-panel animate-slide-up" style={{
+            width: "100%", maxWidth: "540px", padding: "2rem",
+            display: "flex", flexDirection: "column", gap: "1.5rem",
+            background: "var(--surface)", border: "1px solid var(--glass-border)"
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ fontSize: "1.25rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                📄 Import Google Doc
+              </h3>
+              <button 
+                onClick={() => setIsGoogleDocModalOpen(false)} 
+                style={{ background: "transparent", border: "none", fontSize: "1.5rem", color: "var(--foreground)", cursor: "pointer" }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <p style={{ fontSize: "0.9rem", opacity: 0.85 }}>
+              Paste a public share link to your Google Doc, or select a document from your Google Drive account:
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <input
+                type="text"
+                placeholder="https://docs.google.com/document/d/..."
+                value={googleDocUrl}
+                onChange={e => setGoogleDocUrl(e.target.value)}
+                style={{
+                  padding: "0.8rem 1rem",
+                  borderRadius: "12px",
+                  border: "1px solid var(--border)",
+                  background: "var(--background)",
+                  color: "var(--foreground)",
+                  fontSize: "0.95rem",
+                  outline: "none"
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
+              <button
+                onClick={async () => {
+                  await handleGoogleDocImport();
+                  setIsGoogleDocModalOpen(false);
+                }}
+                disabled={isImportingGoogleDoc || !googleDocUrl.trim()}
+                style={{
+                  flex: 2, padding: "0.9rem", borderRadius: "12px",
+                  background: "var(--primary)", border: "none",
+                  color: "white", fontWeight: 700, fontSize: "1rem",
+                  cursor: (isImportingGoogleDoc || !googleDocUrl.trim()) ? "not-allowed" : "pointer",
+                  opacity: (isImportingGoogleDoc || !googleDocUrl.trim()) ? 0.7 : 1,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem"
+                }}
+              >
+                {isImportingGoogleDoc ? "Importing..." : "📥 Import Document Context"}
+              </button>
+              <button
+                onClick={() => setIsGoogleDocModalOpen(false)}
+                style={{
+                  flex: 1, padding: "0.9rem", borderRadius: "12px",
                   background: "var(--surface)", border: "1px solid var(--border)",
                   color: "var(--foreground)", fontWeight: 650, fontSize: "1rem",
                   cursor: "pointer"
