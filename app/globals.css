@@ -1,65 +1,63 @@
-@import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&family=EB+Garamond:ital,wght@0,400..800;1,400..800&display=swap');
-
 :root {
-  /* 1950s Transistor Radio - Cream & Mint Casing */
-  --primary: #d04e37; /* Vintage dial orange-red */
-  --primary-hover: #b83e2a;
-  --primary-glow: rgba(208, 78, 55, 0.08);
+  /* Hawaiian Theme - Vibrant Ocean & Coral */
+  --primary: #ff6b6b; /* Vibrant Coral/Hibiscus Pink */
+  --primary-hover: #ff4757;
+  --primary-glow: rgba(255, 107, 107, 0.15);
 
-  --secondary: #2e6f77; /* Faded dashboard teal */
-  --secondary-glow: rgba(46, 111, 119, 0.08);
+  --secondary: #009688; /* Ocean Teal */
+  --secondary-glow: rgba(0, 150, 136, 0.15);
 
-  --background-start: #eae4d3; /* Creamy ivory outer casing */
-  --background-end: #ded6c0;
+  --background-start: #f7f2eb; /* Warm Sand */
+  --background-end: #e0f2f1; /* Shallow Ocean Water */
   
-  --foreground: #282a29; /* Dark bakelite charcoal */
+  --foreground: #1a365d; /* Deep Navy */
   
-  --surface: #9bbbb8; /* Mint robin's egg blue panel face */
-  --nav-bg: #ede8db;
-  --glass-border: rgba(40, 42, 41, 0.2);
+  --surface: rgba(255, 255, 255, 0.7); /* Light Frosted Glass */
+  --nav-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.5);
   
-  --border: #a8a8a8; /* Chrome trim outline */
+  --border: rgba(26, 54, 93, 0.1);
   
   /* Status Colors */
   --success: #2e7d32;
   --success-glow: rgba(46, 125, 50, 0.12);
 
-  /* Shadows - Bevel offset shadows */
-  --shadow-sm: 1px 1px 0px rgba(255,255,255,0.4), 0 2px 4px rgba(0,0,0,0.15);
-  --shadow-md: 1px 1px 0px rgba(255,255,255,0.4), 2px 2px 6px rgba(0,0,0,0.25);
-  --shadow-glow: 0px 0px 8px rgba(0,0,0,0.05);
+  /* Shadows - Soft floating glassmorphism shadows */
+  --shadow-sm: 0 4px 12px rgba(26, 54, 93, 0.05);
+  --shadow-md: 0 8px 24px rgba(26, 54, 93, 0.08);
+  --shadow-glow: 0px 0px 15px rgba(255, 107, 107, 0.2);
 
   /* Transitions */
-  --transition-fast: 0.1s linear;
-  --transition-normal: 0.18s ease-out;
-  --transition-bounce: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --transition-fast: 0.15s ease-out;
+  --transition-normal: 0.25s ease-in-out;
+  --transition-bounce: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 :root[data-theme="dark"] {
-  /* Vintage Rangefinder Camera - Black Leather & Amber */
-  --primary: #ffb300; /* Luminous amber light meter indicator */
-  --primary-hover: #ffa000;
-  --primary-glow: rgba(255, 179, 0, 0.12);
+  /* Hawaiian Night Theme - Midnight Ocean & Sunset Amber */
+  --primary: #ffa000; /* Sunset Amber */
+  --primary-hover: #ffb300;
+  --primary-glow: rgba(255, 160, 0, 0.15);
   
-  --secondary: #80deea; /* Metallic blue-grey chalk */
-  --secondary-glow: rgba(128, 222, 234, 0.12);
+  --secondary: #4dd0e1; /* Bioluminescent Cyan */
+  --secondary-glow: rgba(77, 208, 225, 0.15);
 
-  --background-start: #1c1c1c; /* Camera black leatherette casing */
-  --background-end: #121212;
+  --background-start: #0b192c; /* Deep Midnight Ocean */
+  --background-end: #050a11; /* Abyss */
   
-  --foreground: #e3e3e3; /* White metal engraving */
+  --foreground: #f7f2eb; /* Sand White */
   
-  --surface: #2d2d2d; /* Matte black bakelite plate */
-  --nav-bg: #222222;
-  --glass-border: rgba(255, 255, 255, 0.15);
+  --surface: rgba(11, 25, 44, 0.65); /* Dark Frosted Glass */
+  --nav-bg: rgba(11, 25, 44, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.08);
   
-  --border: #525252;
+  --border: rgba(255, 255, 255, 0.05);
   
   --success: #81c784;
-  --success-glow: rgba(129, 199, 132, 0.12);
+  --success-glow: rgba(129, 199, 132, 0.15);
 
-  --shadow-sm: 1px 1px 0px rgba(255,255,255,0.05), 0 2px 4px rgba(0,0,0,0.45);
-  --shadow-md: 1px 1px 0px rgba(255,255,255,0.05), 2px 2px 6px rgba(0,0,0,0.55);
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
 html, body {
@@ -69,7 +67,7 @@ html, body {
 }
 
 body {
-  font-family: 'Courier Prime', Courier, monospace;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: var(--foreground);
   background: linear-gradient(135deg, var(--background-start), var(--background-end));
   background-attachment: fixed;
@@ -78,23 +76,9 @@ body {
   line-height: 1.6;
 }
 
-/* Transistor Radio speaker mesh dot grid */
-body::before {
-  content: "";
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background-image: 
-    radial-gradient(circle, var(--glass-border) 1.5px, transparent 2px);
-  background-size: 10px 10px;
-  opacity: 0.22;
-  z-index: -1;
-  pointer-events: none;
-}
-
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'EB Garamond', Georgia, serif;
-  letter-spacing: -0.01em;
+  font-family: var(--font-outfit), var(--font-inter), sans-serif;
+  letter-spacing: -0.02em;
   font-weight: 700;
 }
 
@@ -111,6 +95,7 @@ input, textarea, button, select {
 a {
   color: inherit;
   text-decoration: underline;
+  text-underline-offset: 3px;
   transition: color var(--transition-fast);
 }
 
@@ -125,76 +110,56 @@ html[data-theme="dark"] {
   padding: 0 2rem;
 }
 
-/* Bevelled Molded Bakelite Plastic Card style */
+/* Modern Glassmorphism Panel style */
 .glass-panel {
   background: var(--surface);
-  border: 2px solid var(--border);
-  border-top: 2px solid rgba(255,255,255,0.45);
-  border-left: 2px solid rgba(255,255,255,0.45);
-  box-shadow: 
-    inset 2px 2px 3px rgba(255,255,255,0.3),
-    inset -2px -2px 3px rgba(0,0,0,0.2),
-    3px 5px 12px rgba(0,0,0,0.25);
-  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-md);
+  border-radius: 20px;
 }
 
-/* Recessed Glass tuning screen for display windows */
+/* Recessed display windows */
 .radio-screen {
-  background: rgba(0, 0, 0, 0.05);
-  border: 2px solid rgba(0, 0, 0, 0.15);
-  box-shadow: 
-    inset 2px 2px 5px rgba(0, 0, 0, 0.15),
-    inset -2px -2px 5px rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.05);
   border-radius: 12px;
   padding: 1.5rem;
 }
+html[data-theme="dark"] .radio-screen {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
 
-/* Tactile 3D push buttons */
+/* Sleek Modern Buttons */
 .gadget-btn {
-  font-family: inherit;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border-radius: 8px;
+  font-family: var(--font-inter), sans-serif;
+  font-weight: 600;
+  border-radius: 24px;
   border: 1px solid var(--border);
-  transition: all 0.08s ease-in-out;
+  transition: all var(--transition-fast);
   cursor: pointer;
-  box-shadow: 
-    0px 4px 0px rgba(0,0,0,0.25),
-    0px 5px 8px rgba(0,0,0,0.2);
+  box-shadow: var(--shadow-sm);
   position: relative;
 }
 .gadget-btn:active {
-  transform: translateY(3px);
-  box-shadow: 
-    0px 1px 0px rgba(0,0,0,0.25),
-    0px 2px 3px rgba(0,0,0,0.2);
+  transform: scale(0.97);
+}
+.gadget-btn:hover {
+  box-shadow: var(--shadow-md);
 }
 
-/* Rotary dial knob class */
+/* Clean slider knob */
 .dial-knob {
-  width: 48px;
-  height: 48px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #555, #222);
-  border: 3px solid #ccc;
-  box-shadow: 
-    inset 1px 1px 0px #fff,
-    2px 4px 6px rgba(0,0,0,0.3);
-  position: relative;
+  background: var(--primary);
+  border: 2px solid var(--surface);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
   transition: transform var(--transition-normal);
-}
-.dial-knob::after {
-  content: "";
-  position: absolute;
-  top: 6px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 3px;
-  height: 12px;
-  background: #fff;
-  border-radius: 2px;
 }
 
 /* Micro-Animations */

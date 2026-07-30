@@ -418,7 +418,7 @@ export default function Home() {
     }
   };
 
-  const API_URL = isNative ? "https://www.thespecialeducationnavigator.app" : "";
+  const API_URL = (typeof window !== "undefined" && window.location.hostname === "localhost" && window.location.port === "3000") ? "" : "https://www.thespecialeducationnavigator.app";
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
