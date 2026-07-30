@@ -77,16 +77,16 @@ body {
   position: relative;
 }
 
-/* Subtle Hawaiian Tropical Leaf & Wave Watermark Overlay */
+/* Authentic Hawaiian Petroglyph & Polynesian Kapa Watermark Overlay */
 body::after {
   content: "";
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.04;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cpath fill='%2300897B' d='M60 10 C40 30, 20 60, 60 110 C100 60, 80 30, 60 10 Z M60 30 C50 45, 35 65, 60 95 C85 65, 70 45, 60 30 Z'/%3E%3Cpath fill='%23FF6F61' d='M10 60 C30 40, 60 20, 110 60 C60 100, 30 80, 10 60 Z'/%3E%3C/svg%3E");
-  background-size: 240px 240px;
+  opacity: 0.055;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3C!-- Polynesian Niho Mano Triangle Wave --%3E%3Cpath fill='%2300897B' d='M0 0 L20 30 L40 0 L60 30 L80 0 L100 30 L120 0 L140 30 L160 0 L160 10 L140 40 L120 10 L100 40 L80 10 L60 40 L40 10 L20 40 L0 10 Z'/%3E%3C!-- Hawaiian Honu Turtle Petroglyph --%3E%3Cg fill='%23FF6F61'%3E%3Ccircle cx='80' cy='90' r='16'/%3E%3Ccircle cx='80' cy='65' r='5'/%3E%3Cpath d='M80 65 L80 74 M60 80 Q50 70 40 85 M100 80 Q110 70 120 85 M64 102 Q50 110 45 100 M96 102 Q110 110 115 100' stroke='%23FF6F61' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 160px 160px;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -121,6 +121,23 @@ html[data-theme="dark"] {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 2rem;
+}
+
+/* Polynesian Kapa Geometric Header Band */
+.kapa-accent-bar {
+  height: 6px;
+  width: 100%;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--primary),
+    var(--primary) 12px,
+    var(--secondary) 12px,
+    var(--secondary) 24px,
+    #ffb703 24px,
+    #ffb703 36px
+  );
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
 }
 
 /* Modern Hawaiian Glassmorphism Panel style */

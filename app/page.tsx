@@ -321,6 +321,7 @@ export default function Home() {
   const audioChunksRef = useRef<BlobPart[]>([]);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const googleDriveInputRef = useRef<HTMLInputElement>(null);
   
   // Camera Capture States
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -2404,6 +2405,14 @@ export default function Home() {
                   style={{ display: "none" }} 
                   onChange={handleFileInputChange} 
                 />
+                <input 
+                  type="file" 
+                  multiple
+                  accept="application/vnd.google-apps.document,application/pdf,.docx,.txt,.gdoc,*/*" 
+                  ref={googleDriveInputRef} 
+                  style={{ display: "none" }} 
+                  onChange={handleFileInputChange} 
+                />
                 <button 
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading || user?.subscriptionStatus !== 'SUBSCRIBED'}
@@ -3068,13 +3077,24 @@ export default function Home() {
           alignItems: "center", justifyContent: "center", padding: "2rem"
         }} onClick={() => setIsGoogleDocModalOpen(false)}>
           <div className="glass-panel animate-slide-up" style={{
-            width: "100%", maxWidth: "540px", padding: "2rem",
+            width: "100%", maxWidth: "560px", padding: "2.25rem",
             display: "flex", flexDirection: "column", gap: "1.5rem",
-            background: "var(--surface)", border: "1px solid var(--glass-border)"
+            background: "var(--surface)", border: "1px solid var(--glass-border)",
+            position: "relative", overflow: "hidden"
           }} onClick={e => e.stopPropagation()}>
+            
+            {/* Polynesian Kapa Accent Bar */}
+            <div className="kapa-accent-bar" style={{ position: "absolute", top: 0, left: 0, right: 0, height: "6px" }} />
+
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ fontSize: "1.25rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                📄 Import Google Doc
+              <h3 style={{ fontSize: "1.3rem", fontWeight: 800, display: "flex", alignItems: "center", gap: "0.75rem", color: "var(--foreground)" }}>
+                {/* Hawaiian Honu Turtle Petroglyph SVG Icon */}
+                <svg width="28" height="28" viewBox="0 0 100 100" fill="var(--primary)">
+                  <circle cx="50" cy="55" r="22" />
+                  <circle cx="50" cy="22" r="8" />
+                  <path d="M50 22 L50 33 M25 45 Q10 30 5 50 M75 45 Q90 30 95 50 M30 72 Q10 85 8 72 M70 72 Q90 85 92 72" stroke="var(--primary)" strokeWidth="6" fill="none" strokeLinecap="round" />
+                </svg>
+                Import Google Doc / Drive
               </h3>
               <button 
                 onClick={() => setIsGoogleDocModalOpen(false)} 
@@ -3084,11 +3104,43 @@ export default function Home() {
               </button>
             </div>
 
-            <p style={{ fontSize: "0.9rem", opacity: 0.85 }}>
-              Paste a public share link to your Google Doc, or select a document from your Google Drive account:
-            </p>
+            {/* Option 1: Search & Browse Google Drive */}
+            <div style={{ padding: "1.25rem", borderRadius: "16px", background: "var(--primary-glow)", border: "1px solid var(--primary)", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span style={{ fontSize: "1.25rem" }}>☁️</span>
+                <strong style={{ fontSize: "1rem", color: "var(--foreground)" }}>Search Google Drive Account / Device</strong>
+              </div>
+              <p style={{ fontSize: "0.85rem", opacity: 0.85, margin: 0 }}>
+                Open your device&apos;s storage picker connected to your Google Drive account to search and select files directly:
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsGoogleDocModalOpen(false);
+                  googleDriveInputRef.current?.click();
+                }}
+                style={{
+                  padding: "0.85rem 1.25rem", borderRadius: "12px",
+                  background: "var(--primary)", color: "white",
+                  border: "none", fontWeight: 700, fontSize: "0.95rem",
+                  cursor: "pointer", display: "flex", alignItems: "center",
+                  justifyContent: "center", gap: "0.5rem",
+                  boxShadow: "0 4px 14px var(--primary-glow)"
+                }}
+              >
+                🔍 Open Google Drive Picker
+              </button>
+            </div>
 
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", opacity: 0.5 }}>
+              <hr style={{ flex: 1, border: "none", borderTop: "1px solid var(--border)" }} />
+              <span style={{ fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase" }}>OR PASTE LINK</span>
+              <hr style={{ flex: 1, border: "none", borderTop: "1px solid var(--border)" }} />
+            </div>
+
+            {/* Option 2: Paste Google Doc Link */}
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <label style={{ fontSize: "0.85rem", fontWeight: 700, opacity: 0.85 }}>Google Doc Web Share Link:</label>
               <input
                 type="text"
                 placeholder="https://docs.google.com/document/d/..."
@@ -3115,14 +3167,14 @@ export default function Home() {
                 disabled={isImportingGoogleDoc || !googleDocUrl.trim()}
                 style={{
                   flex: 2, padding: "0.9rem", borderRadius: "12px",
-                  background: "var(--primary)", border: "none",
+                  background: "var(--secondary)", border: "none",
                   color: "white", fontWeight: 700, fontSize: "1rem",
                   cursor: (isImportingGoogleDoc || !googleDocUrl.trim()) ? "not-allowed" : "pointer",
                   opacity: (isImportingGoogleDoc || !googleDocUrl.trim()) ? 0.7 : 1,
                   display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem"
                 }}
               >
-                {isImportingGoogleDoc ? "Importing..." : "📥 Import Document Context"}
+                {isImportingGoogleDoc ? "Importing..." : "📥 Import Staged Link"}
               </button>
               <button
                 onClick={() => setIsGoogleDocModalOpen(false)}
