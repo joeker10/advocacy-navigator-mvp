@@ -653,23 +653,53 @@ export default function Home() {
     if (!googleDocUrl.trim()) return;
     setIsImportingGoogleDoc(true);
     try {
-      const res = await fetch(`${API_URL}/api/import/googledoc`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: googleDocUrl })
-      });
-      const data = await res.json();
-      if (data.success && data.text) {
-        const docFile = new File([data.text], `${data.title || "Google_Doc"}.txt`, { type: "text/plain" });
+      const match = googleDocUrl.match(/\/document\/d\/([a-zA-Z0-9-_]+)/);
+      const docId = match ? match[1] : null;
+
+      let importedText = "";
+      let docTitle = docId ? `Google_Doc_${docId.substring(0, 6)}` : "Google_Doc";
+
+      // 1. Try direct client-side plain text export if valid doc ID
+      if (docId) {
+        try {
+          const directRes = await fetch(`https://docs.google.com/document/d/${docId}/export?format=txt`);
+          if (directRes.ok) {
+            const txt = await directRes.text();
+            if (txt && txt.trim().length > 0) {
+              importedText = txt;
+            }
+          }
+        } catch (e) {
+          console.warn("Direct Google Doc export fetch failed, falling back to API:", e);
+        }
+      }
+
+      // 2. Fall back to API route if direct fetch did not yield text
+      if (!importedText) {
+        const res = await fetch(`${API_URL}/api/import/googledoc`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: googleDocUrl })
+        });
+        const data = await res.json();
+        if (data.success && data.text) {
+          importedText = data.text;
+          if (data.title) docTitle = data.title;
+        } else {
+          alert(data.error || "Failed to import Google Doc. Please ensure link sharing is set to 'Anyone with the link can view'.");
+          return;
+        }
+      }
+
+      if (importedText) {
+        const docFile = new File([importedText], `${docTitle}.txt`, { type: "text/plain" });
         await handleFiles([docFile]);
         setGoogleDocUrl("");
-        alert(`Successfully staged Google Doc: "${data.title}"`);
-      } else {
-        alert(data.error || "Failed to import Google Doc. Make sure link sharing is enabled.");
+        alert(`Successfully staged Google Doc: "${docTitle}"`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Network error importing Google Doc.");
+      alert("Error importing Google Doc: " + (err.message || "Network error. Make sure link sharing is enabled."));
     } finally {
       setIsImportingGoogleDoc(false);
     }
@@ -2189,6 +2219,13 @@ export default function Home() {
           </p>
         </section>
 
+        {/* Hawaiian Ocean Wave Divider */}
+        <div style={{ width: "100%", overflow: "hidden", lineHeight: 0, margin: "1rem 0" }}>
+          <svg viewBox="0 0 1200 120" preserveAspectRatio="none" style={{ position: "relative", display: "block", width: "calc(100% + 1.3px)", height: "40px" }}>
+            <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z" fill="var(--secondary-glow)"></path>
+          </svg>
+        </div>
+
         {/* Core Workspace Area */}
         <div style={{ display: "flex", flexDirection: "column", gap: "2rem", transition: "all var(--transition-normal)" }}>
           
@@ -2907,7 +2944,7 @@ export default function Home() {
       </div>
       
       {/* Footer Nav */}
-      <footer style={{ position: "absolute", bottom: "1rem", width: "100%", textAlign: "center", opacity: 0.6, fontSize: "0.875rem" }}>
+      <footer style={{ position: "relative", marginTop: "2.5rem", marginBottom: "2rem", width: "100%", textAlign: "center", opacity: 0.85, fontSize: "0.875rem", zIndex: 10 }}>
          <a href="/help" onClick={(e) => handleLinkClick(e, "/help")} style={{ color: "var(--primary)", textDecoration: "underline", fontWeight: 600 }}>Access Resource Directory</a>
       </footer>
 
