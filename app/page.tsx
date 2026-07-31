@@ -67,7 +67,7 @@ function FilePreview({ file }: FilePreviewProps) {
   const isAudio = file.type.startsWith('audio/');
   const isImage = file.type.startsWith('image/');
   const isPdf = file.type === 'application/pdf';
-  const isWordDoc = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx');
+  const isWordDoc = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.type === 'application/msword' || file.name.endsWith('.docx') || file.name.endsWith('.doc');
   const isOdtDoc = file.type === 'application/vnd.oasis.opendocument.text' || file.name.endsWith('.odt');
 
   let fileIcon = "📄";
@@ -1186,8 +1186,10 @@ export default function Home() {
       f.type.startsWith('image/') || 
       f.type === 'application/pdf' || 
       f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
+      f.type === 'application/msword' || 
       f.type === 'application/vnd.oasis.opendocument.text' || 
       f.name.endsWith('.docx') || 
+      f.name.endsWith('.doc') || 
       f.name.endsWith('.odt') ||
       f.name.endsWith('.gdoc') ||
       f.type === 'application/vnd.google-apps.document';
@@ -2402,7 +2404,7 @@ export default function Home() {
                 <input 
                   type="file" 
                   multiple
-                  accept="image/*,application/pdf,audio/*,.docx,.odt,.gdoc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text,application/vnd.google-apps.document" 
+                  accept="image/*,application/pdf,audio/*,.docx,.doc,.odt,.gdoc,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text,application/vnd.google-apps.document" 
                   ref={fileInputRef} 
                   style={{ display: "none" }} 
                   onChange={handleFileInputChange} 
@@ -2410,7 +2412,7 @@ export default function Home() {
                 <input 
                   type="file" 
                   multiple
-                  accept="application/vnd.google-apps.document,application/pdf,.docx,.txt,.gdoc,*/*" 
+                  accept="application/vnd.google-apps.document,application/pdf,.docx,.doc,.txt,.gdoc,application/msword,*/*" 
                   ref={googleDriveInputRef} 
                   style={{ display: "none" }} 
                   onChange={handleFileInputChange} 
@@ -2430,7 +2432,7 @@ export default function Home() {
                   📤 Upload Files
                 </button>
                 <span style={{ fontSize: "0.75rem", opacity: 0.6, textAlign: "center" }}>
-                  PDF, DOCX, ODT, JPEG, PNG, WEBP, MP3, WAV, WebM
+                  PDF, DOCX, DOC, ODT, JPEG, PNG, WEBP, MP3, WAV, WebM
                 </span>
               </div>
 

@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
       const buffer = Buffer.from(arrayBuffer);
       
       const isDocx = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx');
+      const isDoc = file.type === 'application/msword' || file.name.endsWith('.doc');
       const isOdt = file.type === 'application/vnd.oasis.opendocument.text' || file.name.endsWith('.odt');
 
       if (isDocx) {
@@ -64,11 +65,18 @@ export async function POST(req: NextRequest) {
         parts.push({
           text: `Document Name: ${file.name}\nDocument Plain Text Content:\n${text}\n`
         });
+      } else if (isDoc) {
+        parts.push({
+          inlineData: {
+            data: buffer.toString('base64'),
+            mimeType: 'application/msword'
+          }
+        });
       } else {
         parts.push({
           inlineData: {
             data: buffer.toString('base64'),
-            mimeType: file.type
+            mimeType: file.type || 'application/octet-stream'
           }
         });
       }
