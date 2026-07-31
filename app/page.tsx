@@ -1542,9 +1542,9 @@ export default function Home() {
             <img 
               src="/navigator-logo.jpg" 
               alt="Logo" 
-              style={{ width: "70px", height: "70px", borderRadius: "50%", border: "2px solid var(--glass-border)", marginBottom: "1rem", objectFit: "cover" }} 
+              style={{ width: "92px", height: "92px", borderRadius: "50%", border: "2px solid var(--glass-border)", marginBottom: "1rem", objectFit: "contain", padding: "3px", background: "var(--surface)" }} 
             />
-            <h2 style={{ fontSize: "1.75rem", fontWeight: 850 }}>Special Education Navigator</h2>
+            <h2 style={{ fontSize: "1.22rem", fontWeight: 850 }}>Special Education Navigator</h2>
             <p style={{ opacity: 0.7, fontSize: "0.9rem", marginTop: "0.25rem" }}>
               {showVerificationInput ? "Email Verification Required" : show2FAInput ? "Two-Factor Verification Required" : isAuthModeLogin ? "Sign in to access your child's advocate portal" : "Create your private zero-trust advocate account"}
             </p>
@@ -1829,17 +1829,17 @@ export default function Home() {
               {isMobileMenuOpen ? "✕" : "☰"}
             </button>
 
-            <a href="/home" target="_blank" rel="noopener noreferrer" onClick={(e) => handleLinkClick(e, "/home")} style={{ display: "flex", alignItems: "center", gap: "12px", textDecoration: "none", color: "var(--foreground)" }} aria-label="Special Education Navigator Home">
+            <a href="/home" target="_blank" rel="noopener noreferrer" onClick={(e) => handleLinkClick(e, "/home")} style={{ display: "flex", alignItems: "center", gap: "10px", textDecoration: "none", color: "var(--foreground)" }} aria-label="Special Education Navigator Home">
               <img 
                 src="/navigator-logo.jpg" 
-                alt="" 
+                alt="Special Education Navigator Logo" 
                 className="nav-logo"
                 style={{ 
-                  width: "40px", height: "40px", borderRadius: "50%", 
-                  boxShadow: "0 4px 12px var(--primary-glow)", border: "1px solid var(--glass-border)", objectFit: "cover"
+                  width: "52px", height: "52px", borderRadius: "50%", 
+                  boxShadow: "0 4px 12px var(--primary-glow)", border: "1px solid var(--glass-border)", objectFit: "contain", padding: "2px", background: "var(--surface)"
                 }} 
               />
-              <span className="nav-title" style={{ fontSize: "1.1rem", fontWeight: 700, letterSpacing: "-0.01em", color: "var(--foreground)", lineHeight: "1.2", display: "inline-block", textAlign: "center", textDecoration: "none" }}>
+              <span className="nav-title" style={{ fontSize: "0.77rem", fontWeight: 700, letterSpacing: "-0.01em", color: "var(--foreground)", lineHeight: "1.2", display: "inline-block", textAlign: "left", textDecoration: "none" }}>
                 Special Education <br/> Navigator
               </span>
             </a>
@@ -2203,9 +2203,11 @@ export default function Home() {
               src="/navigator-logo.jpg" 
               alt="The Special Education Navigator" 
               style={{ 
-                width: "180px", 
-                height: "180px", 
-                objectFit: "cover",
+                width: "210px", 
+                height: "210px", 
+                objectFit: "contain",
+                padding: "6px",
+                background: "var(--surface)",
                 borderRadius: "50%", 
                 boxShadow: "0 0 30px var(--primary-glow)",
                 border: "2px solid var(--glass-border)"

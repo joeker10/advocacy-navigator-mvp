@@ -298,14 +298,18 @@ html[data-theme="dark"] .radio-screen {
     gap: 8px !important;
   }
   .nav-title {
-    font-size: 1rem !important;
+    font-size: 0.77rem !important;
+    line-height: 1.2 !important;
+  }
+  .nav-logo {
+    width: 48px !important;
+    height: 48px !important;
+    object-fit: contain !important;
+    padding: 2px !important;
+    background: var(--surface) !important;
   }
   .container {
     padding: 0 0.15rem !important;
-  }
-  .nav-logo {
-    width: 32px !important;
-    height: 32px !important;
   }
   .glass-panel {
     padding: 0.4rem !important;
