@@ -1967,6 +1967,53 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Google Play & Mobile Subscription Section */}
+            {user?.subscriptionStatus !== "SUBSCRIBED" && (
+              <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
+                <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  ⭐ Unlock Unlimited Access
+                </h3>
+                <p style={{ fontSize: "0.85rem", opacity: 0.7, marginBottom: "1rem" }}>
+                  Get unlimited AI advocacy chats, IEP document extractions, meeting transcriptions, and family sharing.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`${API_URL}/api/subscriptions/verify-google`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${sessionToken}`
+                        },
+                        body: JSON.stringify({ purchaseToken: 'demo_token_' + Date.now(), productId: 'sped_nav_monthly_unlimited' })
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        setSessionUser(prev => prev ? { ...prev, subscriptionStatus: 'SUBSCRIBED', subscriptionExpiresAt: data.subscriptionExpiresAt } : null);
+                        alert("🎉 Subscription activated successfully via Google Play!");
+                      } else {
+                        alert(data.error || "Subscription verification failed.");
+                      }
+                    } catch (err) {
+                      console.error("Subscription purchase error:", err);
+                      alert("Unable to reach subscription server.");
+                    }
+                  }}
+                  style={{
+                    width: "100%", padding: "0.85rem 1.25rem", borderRadius: "12px",
+                    background: "linear-gradient(135deg, var(--primary), var(--secondary))",
+                    color: "white", fontWeight: 700, fontSize: "1rem", border: "none",
+                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                    gap: "0.5rem", boxShadow: "0 4px 16px var(--primary-glow)", marginBottom: "1.25rem"
+                  }}
+                >
+                  💳 Subscribe via Google Play ($9.99/mo)
+                </button>
+              </div>
+            )}
+
             {/* Coupon Redemption Section */}
             {user?.subscriptionStatus !== "SUBSCRIBED" && (
               <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
