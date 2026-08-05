@@ -1991,7 +1991,7 @@ export default function Home() {
                       });
                       const data = await res.json();
                       if (data.success) {
-                        setUser(prev => prev ? { ...prev, subscriptionStatus: 'SUBSCRIBED', subscriptionExpiresAt: data.subscriptionExpiresAt } : null);
+                        setUser(prev => prev ? { ...prev, subscriptionStatus: 'SUBSCRIBED', subscriptionTier: data.subscriptionTier || 'PROFESSIONAL' } : null);
                         alert("🎉 Subscription activated successfully via Google Play!");
                       } else {
                         alert(data.error || "Subscription verification failed.");

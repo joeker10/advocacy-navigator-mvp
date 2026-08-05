@@ -14,23 +14,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Purchase token is required' }, { status: 400 });
     }
 
-    // Set subscription duration to 30 days from now
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30);
-
     const updatedUser = await prisma.user.update({
       where: { id: payload.userId },
       data: {
         subscriptionStatus: 'SUBSCRIBED',
-        subscriptionTier: productId || 'sped_nav_monthly_unlimited',
-        subscriptionExpiresAt: expiresAt.toISOString(),
+        subscriptionTier: productId || 'PROFESSIONAL',
+        profileLimit: 9999
       }
     });
 
     return NextResponse.json({
       success: true,
       subscriptionStatus: updatedUser.subscriptionStatus,
-      subscriptionExpiresAt: updatedUser.subscriptionExpiresAt,
+      subscriptionTier: updatedUser.subscriptionTier,
       message: 'Subscription successfully activated via Google Play!'
     });
   } catch (error) {
