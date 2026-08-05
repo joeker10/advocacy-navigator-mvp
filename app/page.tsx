@@ -1985,13 +1985,13 @@ export default function Home() {
                         method: 'POST',
                         headers: {
                           'Content-Type': 'application/json',
-                          'Authorization': `Bearer ${sessionToken}`
+                          'Authorization': `Bearer ${token}`
                         },
                         body: JSON.stringify({ purchaseToken: 'demo_token_' + Date.now(), productId: 'sped_nav_monthly_unlimited' })
                       });
                       const data = await res.json();
                       if (data.success) {
-                        setSessionUser(prev => prev ? { ...prev, subscriptionStatus: 'SUBSCRIBED', subscriptionExpiresAt: data.subscriptionExpiresAt } : null);
+                        setUser(prev => prev ? { ...prev, subscriptionStatus: 'SUBSCRIBED', subscriptionExpiresAt: data.subscriptionExpiresAt } : null);
                         alert("🎉 Subscription activated successfully via Google Play!");
                       } else {
                         alert(data.error || "Subscription verification failed.");
