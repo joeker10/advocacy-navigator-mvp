@@ -10,8 +10,15 @@ export async function POST(req: NextRequest) {
     }
 
     const { purchaseToken, productId } = await req.json();
-    if (!purchaseToken) {
-      return NextResponse.json({ error: 'Purchase token is required' }, { status: 400 });
+    if (!purchaseToken || typeof purchaseToken !== 'string') {
+      return NextResponse.json({ error: 'Valid Google Play purchase token is required' }, { status: 400 });
+    }
+
+    // Reject mock/demo tokens in production to ensure users must pay through Google Play Billing
+    if (purchaseToken.startsWith('demo_token_')) {
+      return NextResponse.json({ 
+        error: 'Invalid purchase token. Real Google Play Store subscription purchase is required.' 
+      }, { status: 400 });
     }
 
     const updatedUser = await prisma.user.update({
@@ -31,6 +38,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("Google Subscription Verification Error:", error);
-    return NextResponse.json({ error: 'Failed to verify subscription' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to verify subscription with Google Play' }, { status: 500 });
   }
 }
