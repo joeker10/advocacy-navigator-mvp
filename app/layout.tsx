@@ -35,7 +35,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable}`}>
-      <Script src="https://accounts.google.com/gsi/client" strategy="lazyOnload" />
+      <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
       <body className="antialiased" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
         <div style={{ flex: 1 }}>{children}</div>
         <footer className="app-footer" style={{ 
