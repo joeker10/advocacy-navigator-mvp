@@ -77,7 +77,7 @@ function FilePreview({ file }: FilePreviewProps) {
   else if (isWordDoc || isOdtDoc) fileIcon = "📝";
 
   const handleDownload = async () => {
-    const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNative;
+    const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNativePlatform?.();
     
     if (isNative) {
       try {
@@ -297,7 +297,7 @@ export default function Home() {
 
   const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     const isNative = typeof window !== "undefined" && 
-      ((window as any).Capacitor?.isNative || window.location.href.startsWith("file:") || window.location.hostname === "localhost" && window.location.port === "");
+      ((window as any).Capacitor?.isNativePlatform?.() || window.location.href.startsWith("file:") || window.location.hostname === "localhost" && window.location.port === "");
     
     if (isNative) {
       e.preventDefault();
@@ -339,7 +339,7 @@ export default function Home() {
   const [isGoogleDocModalOpen, setIsGoogleDocModalOpen] = useState(false);
   const [childProfiles, setChildProfiles] = useState<any[]>([]);
   const [selectedChildId, setSelectedChildId] = useState<string>("general");
-  const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNative;
+  const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNativePlatform?.();
   const [webInquiriesCount, setWebInquiriesCount] = useState(0);
 
   useEffect(() => {
@@ -634,7 +634,7 @@ export default function Home() {
       }
     };
 
-    const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNative;
+    const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNativePlatform?.();
     if (!isNative && !isAuthenticated) {
       if ((window as any).google) {
         initGoogleWebAuth();
