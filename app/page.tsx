@@ -594,7 +594,7 @@ export default function Home() {
       const g = (window as any).google;
       if (g && g.accounts && g.accounts.id) {
         g.accounts.id.initialize({
-          client_id: "76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com",
+          client_id: "584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com",
           callback: async (response: any) => {
             const tokenVal = response.credential;
             setAuthError("");
@@ -715,8 +715,8 @@ export default function Home() {
         try {
           const { GoogleAuth } = require('@codetrix-studio/capacitor-google-auth');
           GoogleAuth.initialize({
-            clientId: '76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com',
-            serverClientId: '76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com',
+            clientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
+            serverClientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
             scopes: ['profile', 'email'],
             grantOfflineAccess: true,
           });
@@ -755,8 +755,8 @@ export default function Home() {
       } else {
         const { GoogleAuth } = require('@codetrix-studio/capacitor-google-auth');
         GoogleAuth.initialize({
-          clientId: '76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com',
-          serverClientId: '76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com',
+          clientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
+          serverClientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
           scopes: ['profile', 'email'],
           grantOfflineAccess: true,
         });

@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       }
       
       const validAudiences = [
+        '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
         '76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com'
       ];
       if (process.env.GOOGLE_CLIENT_ID && !validAudiences.includes(process.env.GOOGLE_CLIENT_ID)) {
