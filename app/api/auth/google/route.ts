@@ -24,9 +24,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Google Login is not configured on the server yet.' }, { status: 500 });
       }
       
+      const validAudiences = [
+        '76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com'
+      ];
+      if (process.env.GOOGLE_CLIENT_ID && !validAudiences.includes(process.env.GOOGLE_CLIENT_ID)) {
+        validAudiences.push(process.env.GOOGLE_CLIENT_ID);
+      }
+
       const ticket = await client.verifyIdToken({
         idToken,
-        audience: process.env.GOOGLE_CLIENT_ID,
+        audience: validAudiences,
       });
       payload = ticket.getPayload();
     }

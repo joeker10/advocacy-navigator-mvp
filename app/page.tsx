@@ -712,40 +712,44 @@ export default function Home() {
       const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNativePlatform?.();
       
       if (isNative) {
-        const { GoogleAuth } = require('@codetrix-studio/capacitor-google-auth');
-        GoogleAuth.initialize({
-          clientId: '76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com',
-          serverClientId: '76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com',
-          scopes: ['profile', 'email'],
-          grantOfflineAccess: true,
-        });
-
-        const userResult = await GoogleAuth.signIn();
-        const idToken = userResult?.authentication?.idToken || userResult?.idToken;
-        if (idToken) {
-          const res = await fetch(`${API_URL}/api/auth/google`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ idToken })
+        try {
+          const { GoogleAuth } = require('@codetrix-studio/capacitor-google-auth');
+          GoogleAuth.initialize({
+            clientId: '76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com',
+            serverClientId: '76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com',
+            scopes: ['profile', 'email'],
+            grantOfflineAccess: true,
           });
-          const data = await res.json();
-          if (data.success && data.token) {
-            localStorage.setItem("spednav_auth_token", data.token);
-            setToken(data.token);
-            setUser(data.user);
-            setIsAuthenticated(true);
-            setAuthEmail("");
-            setAuthPassword("");
-            syncWithServer(data.token);
-            return;
-          } else {
-            setAuthError(data.error || "Google authentication failed.");
-            return;
+
+          const userResult = await GoogleAuth.signIn();
+          const idToken = userResult?.authentication?.idToken || userResult?.idToken;
+          if (idToken) {
+            const res = await fetch(`${API_URL}/api/auth/google`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ idToken })
+            });
+            const data = await res.json();
+            if (data.success && data.token) {
+              localStorage.setItem("spednav_auth_token", data.token);
+              setToken(data.token);
+              setUser(data.user);
+              setIsAuthenticated(true);
+              setAuthEmail("");
+              setAuthPassword("");
+              syncWithServer(data.token);
+              return;
+            } else {
+              setAuthError(data.error || "Google authentication failed.");
+              return;
+            }
           }
+        } catch (nativeErr: any) {
+          console.warn("Native GoogleAuth failed, trying Web GSI fallback:", nativeErr);
         }
       }
 
-      // Web Fallback
+      // Web Fallback (or if Native GoogleAuth threw error)
       if ((window as any).google?.accounts?.id) {
         (window as any).google.accounts.id.prompt();
       } else {
