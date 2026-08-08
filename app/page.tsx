@@ -712,46 +712,42 @@ export default function Home() {
       const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNativePlatform?.();
       
       if (isNative) {
-        try {
-          const { GoogleAuth } = require('@codetrix-studio/capacitor-google-auth');
-          GoogleAuth.initialize({
-            clientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
-            serverClientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
-            scopes: ['profile', 'email'],
-            grantOfflineAccess: true,
-          });
+        const { GoogleAuth } = require('@codetrix-studio/capacitor-google-auth');
+        GoogleAuth.initialize({
+          clientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
+          serverClientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
+          scopes: ['profile', 'email'],
+          grantOfflineAccess: true,
+        });
 
-          const userResult = await GoogleAuth.signIn();
-          const idToken = userResult?.authentication?.idToken || userResult?.idToken;
-          if (idToken) {
-            const res = await fetch(`${API_URL}/api/auth/google`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ idToken })
-            });
-            const data = await res.json();
-            if (data.success && data.token) {
-              localStorage.setItem("spednav_auth_token", data.token);
-              setToken(data.token);
-              setUser(data.user);
-              setIsAuthenticated(true);
-              setAuthEmail("");
-              setAuthPassword("");
-              syncWithServer(data.token);
-              return;
-            } else {
-              setAuthError(data.error || "Google authentication failed.");
-              return;
-            }
+        const userResult = await GoogleAuth.signIn();
+        const idToken = userResult?.authentication?.idToken || userResult?.idToken;
+        if (idToken) {
+          const res = await fetch(`${API_URL}/api/auth/google`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ idToken })
+          });
+          const data = await res.json();
+          if (data.success && data.token) {
+            localStorage.setItem("spednav_auth_token", data.token);
+            setToken(data.token);
+            setUser(data.user);
+            setIsAuthenticated(true);
+            setAuthEmail("");
+            setAuthPassword("");
+            syncWithServer(data.token);
+          } else {
+            setAuthError(data.error || "Google authentication failed.");
           }
-        } catch (nativeErr: any) {
-          console.warn("Native GoogleAuth failed, trying Web GSI fallback:", nativeErr);
         }
+        return;
       }
 
-      // Web Fallback (or if Native GoogleAuth threw error)
-      if ((window as any).google?.accounts?.id) {
-        (window as any).google.accounts.id.prompt();
+      // Web Flow
+      const g = (window as any).google;
+      if (g && g.accounts && g.accounts.id) {
+        g.accounts.id.prompt();
       } else {
         const { GoogleAuth } = require('@codetrix-studio/capacitor-google-auth');
         GoogleAuth.initialize({
@@ -784,7 +780,9 @@ export default function Home() {
       }
     } catch (err: any) {
       console.error("Google Sign-In Error:", err);
-      setAuthError("Google Sign-In Error: " + (err.message || "Sign in cancelled or failed."));
+      if (err?.message !== "User cancelled" && err !== "User cancelled") {
+        setAuthError("Google Sign-In Error: " + (err.message || "Sign in failed."));
+      }
     }
   };
 

@@ -1,7 +1,7 @@
 import { getChildProfiles, getSavedInsights, getDB } from './indexeddb';
 
 const getApiUrl = () => {
-  const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNative;
+  const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNativePlatform?.();
   return isNative ? "https://www.thespecialeducationnavigator.app" : "";
 };
 

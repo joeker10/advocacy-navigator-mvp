@@ -25,27 +25,34 @@ export default function SavedInsightsPage() {
 
   const loadData = async () => {
     try {
+      // 1. Immediately load local insights & profiles for zero lag UI
+      const savedData = await getSavedInsights();
+      savedData.sort((a, b) => b.timestamp - a.timestamp);
+      setInsights(savedData);
+
+      const profiles = await getChildProfiles();
+      setChildProfiles(profiles);
+      setLoading(false);
+
+      // 2. Perform account cloud sync in background if logged in
       const token = typeof window !== 'undefined' ? localStorage.getItem("spednav_auth_token") : null;
       if (token) {
         try {
           const { fullSync } = await import("@/lib/sync");
           await fullSync();
+          // 3. Refresh with any newly pulled cloud items
+          const updatedInsights = await getSavedInsights();
+          updatedInsights.sort((a, b) => b.timestamp - a.timestamp);
+          setInsights(updatedInsights);
+
+          const updatedProfiles = await getChildProfiles();
+          setChildProfiles(updatedProfiles);
         } catch (syncErr) {
           console.error("Failed to sync on vault load:", syncErr);
         }
       }
-
-      // Load insights
-      const savedData = await getSavedInsights();
-      savedData.sort((a, b) => b.timestamp - a.timestamp);
-      setInsights(savedData);
-
-      // Load child profiles
-      const profiles = await getChildProfiles();
-      setChildProfiles(profiles);
     } catch (e) {
       console.error("Failed to load offline vault data:", e);
-    } finally {
       setLoading(false);
     }
   };

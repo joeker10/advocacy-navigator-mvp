@@ -129,6 +129,7 @@ export async function saveInsight(query: string, response: string, childId?: str
   const id = safeUUID();
   const timestampStr = new Date().toLocaleString();
   let resolvedName = name;
+  let savedItem: any = null;
 
   try {
     const db = await getDB();
@@ -138,41 +139,53 @@ export async function saveInsight(query: string, response: string, childId?: str
         const childName = child ? child.name : "Child";
         resolvedName = childId ? `${childName} - ${timestampStr}` : `General - ${timestampStr}`;
       }
-      await db.put('saved_insights', {
+      savedItem = {
         id,
         query,
         response,
         timestamp: Date.now(),
         childId,
         name: resolvedName,
-      });
-      return;
+      };
+      await db.put('saved_insights', savedItem);
     }
   } catch (err) {
     console.warn("IndexedDB saveInsight failed, falling back to LocalStorage:", err);
   }
 
-  // Fallback to LocalStorage
-  if (!resolvedName) {
-    resolvedName = childId ? `Child - ${timestampStr}` : `General - ${timestampStr}`;
+  if (!savedItem) {
+    // Fallback to LocalStorage
+    if (!resolvedName) {
+      resolvedName = childId ? `Child - ${timestampStr}` : `General - ${timestampStr}`;
+    }
+    savedItem = {
+      id,
+      query,
+      response,
+      timestamp: Date.now(),
+      childId,
+      name: resolvedName,
+    };
+    try {
+      const existingStr = localStorage.getItem("spednav_insights_fallback") || "[]";
+      const existing = JSON.parse(existingStr);
+      existing.push(savedItem);
+      localStorage.setItem("spednav_insights_fallback", JSON.stringify(existing));
+    } catch (e) {
+      console.error("LocalStorage fallback failed:", e);
+      throw new Error("Failed to save insight offline.");
+    }
   }
-  const fallbackItem = {
-    id,
-    query,
-    response,
-    timestamp: Date.now(),
-    childId,
-    name: resolvedName,
-  };
+
+  // Trigger sync in background if logged in
   try {
-    const existingStr = localStorage.getItem("spednav_insights_fallback") || "[]";
-    const existing = JSON.parse(existingStr);
-    existing.push(fallbackItem);
-    localStorage.setItem("spednav_insights_fallback", JSON.stringify(existing));
-  } catch (e) {
-    console.error("LocalStorage fallback failed:", e);
-    throw new Error("Failed to save insight offline.");
+    const { syncItem } = await import('./sync');
+    await syncItem('insight', savedItem);
+  } catch (sErr) {
+    console.warn("Failed to sync insight to cloud server:", sErr);
   }
+
+  return savedItem;
 }
 
 export async function getSavedInsights() {
