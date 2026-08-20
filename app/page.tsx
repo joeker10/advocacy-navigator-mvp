@@ -824,7 +824,7 @@ export default function Home() {
         } catch (nativeErr: any) {
           console.warn("Native GoogleAuth failed, launching secure browser auth fallback:", nativeErr);
           const { Browser } = require('@capacitor/browser');
-          const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com&redirect_uri=https://www.thespecialeducationnavigator.app/api/auth/google/callback&response_type=code&scope=openid%20email%20profile&prompt=select_account`;
+          const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com&redirect_uri=https://www.thespecialeducationnavigator.app/api/auth/google/callback&response_type=token&scope=openid%20email%20profile&prompt=select_account`;
           
           await Browser.open({ url: oauthUrl, windowName: '_system' });
           return;
@@ -877,7 +877,7 @@ export default function Home() {
         g.accounts.id.prompt();
       } else {
         // Direct browser fallback on web if GIS not loaded
-        const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com&redirect_uri=https://www.thespecialeducationnavigator.app/api/auth/google/callback&response_type=code&scope=openid%20email%20profile&prompt=select_account`;
+        const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com&redirect_uri=https://www.thespecialeducationnavigator.app/api/auth/google/callback&response_type=token&scope=openid%20email%20profile&prompt=select_account`;
         window.location.href = oauthUrl;
       }
     } catch (err: any) {
