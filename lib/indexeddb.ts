@@ -153,28 +153,15 @@ export async function saveInsight(query: string, response: string, childId?: str
     console.warn("IndexedDB saveInsight failed, falling back to LocalStorage:", err);
   }
 
-  if (!savedItem) {
-    // Fallback to LocalStorage
-    if (!resolvedName) {
-      resolvedName = childId ? `Child - ${timestampStr}` : `General - ${timestampStr}`;
-    }
-    savedItem = {
-      id,
-      query,
-      response,
-      timestamp: Date.now(),
-      childId,
-      name: resolvedName,
-    };
-    try {
-      const existingStr = localStorage.getItem("spednav_insights_fallback") || "[]";
-      const existing = JSON.parse(existingStr);
-      existing.push(savedItem);
-      localStorage.setItem("spednav_insights_fallback", JSON.stringify(existing));
-    } catch (e) {
-      console.error("LocalStorage fallback failed:", e);
-      throw new Error("Failed to save insight offline.");
-    }
+  // Always persist to LocalStorage as guaranteed persistent backup
+  try {
+    const existingStr = localStorage.getItem("spednav_insights_fallback") || "[]";
+    const existing: any[] = JSON.parse(existingStr);
+    const filtered = existing.filter((item: any) => item.id !== savedItem.id);
+    filtered.push(savedItem);
+    localStorage.setItem("spednav_insights_fallback", JSON.stringify(filtered));
+  } catch (e) {
+    console.error("LocalStorage backup write failed:", e);
   }
 
   // Trigger sync in background if logged in

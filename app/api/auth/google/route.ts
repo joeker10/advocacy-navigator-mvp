@@ -20,10 +20,6 @@ export async function POST(req: NextRequest) {
       const email = idToken.replace('mock_token_', '');
       payload = { email, email_verified: true };
     } else {
-      if (!process.env.GOOGLE_CLIENT_ID) {
-        return NextResponse.json({ error: 'Google Login is not configured on the server yet.' }, { status: 500 });
-      }
-      
       const validAudiences = [
         '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
         '76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com'
