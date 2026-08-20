@@ -784,6 +784,57 @@ export default function Home() {
     }
   };
 
+  const handlePasteClipboard = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          setGoogleDocUrl(text.trim());
+          triggerHaptic();
+        }
+      }
+    } catch (e) {
+      console.warn("Clipboard read failed:", e);
+    }
+  };
+
+  const openGoogleDrivePicker = () => {
+    const g = (window as any).google;
+    const gapi = (window as any).gapi;
+
+    if (g && g.picker && gapi && gapi.client) {
+      try {
+        const view = new g.picker.DocsView(g.picker.ViewId.DOCS);
+        const picker = new g.picker.PickerBuilder()
+          .enableFeature(g.picker.Feature.MULTISELECT_ENABLED)
+          .setAppId("584515942995")
+          .addView(view)
+          .addView(new g.picker.DocsUploadView())
+          .setCallback(async (data: any) => {
+            if (data[g.picker.Response.ACTION] === g.picker.Action.PICKED) {
+              const docs = data[g.picker.Response.DOCUMENTS];
+              if (docs && docs.length > 0) {
+                const doc = docs[0];
+                const docUrl = `https://docs.google.com/document/d/${doc[g.picker.Document.ID]}/edit`;
+                setGoogleDocUrl(docUrl);
+                setIsGoogleDocModalOpen(false);
+                await handleGoogleDocImport();
+              }
+            }
+          })
+          .build();
+        picker.setVisible(true);
+        return;
+      } catch (err) {
+        console.warn("Google Picker API init error, falling back to device picker:", err);
+      }
+    }
+
+    // Direct fallback: trigger unconstrained file picker that accesses Google Drive without greying out files
+    setIsGoogleDocModalOpen(false);
+    googleDriveInputRef.current?.click();
+  };
+
   const handleGoogleLogin = async () => {
     setAuthError("");
     try {
@@ -2843,7 +2894,7 @@ export default function Home() {
                 <input 
                   type="file" 
                   multiple
-                  accept="application/vnd.google-apps.document,application/pdf,.docx,.doc,.txt,.gdoc,application/msword,*/*" 
+                  accept="*/*" 
                   ref={googleDriveInputRef} 
                   style={{ display: "none" }} 
                   onChange={handleFileInputChange} 
@@ -3566,28 +3617,42 @@ export default function Home() {
             <div style={{ padding: "1.25rem", borderRadius: "16px", background: "var(--primary-glow)", border: "1px solid var(--primary)", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <span style={{ fontSize: "1.25rem" }}>☁️</span>
-                <strong style={{ fontSize: "1rem", color: "var(--foreground)" }}>Search Google Drive Account / Device</strong>
+                <strong style={{ fontSize: "1rem", color: "var(--foreground)" }}>Select from Google Drive / Device</strong>
               </div>
               <p style={{ fontSize: "0.85rem", opacity: 0.85, margin: 0 }}>
-                Open your device&apos;s storage picker connected to your Google Drive account to search and select files directly:
+                Choose Google Docs, Word documents, or PDFs directly from your Google Drive:
               </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsGoogleDocModalOpen(false);
-                  googleDriveInputRef.current?.click();
-                }}
-                style={{
-                  padding: "0.85rem 1.25rem", borderRadius: "12px",
-                  background: "var(--primary)", color: "white",
-                  border: "none", fontWeight: 700, fontSize: "0.95rem",
-                  cursor: "pointer", display: "flex", alignItems: "center",
-                  justifyContent: "center", gap: "0.5rem",
-                  boxShadow: "0 4px 14px var(--primary-glow)"
-                }}
-              >
-                🔍 Open Google Drive Picker
-              </button>
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={openGoogleDrivePicker}
+                  style={{
+                    flex: 1, minWidth: "180px",
+                    padding: "0.85rem 1.25rem", borderRadius: "12px",
+                    background: "var(--primary)", color: "white",
+                    border: "none", fontWeight: 700, fontSize: "0.95rem",
+                    cursor: "pointer", display: "flex", alignItems: "center",
+                    justifyContent: "center", gap: "0.5rem",
+                    boxShadow: "0 4px 14px var(--primary-glow)"
+                  }}
+                >
+                  🔍 Open Google Drive Picker
+                </button>
+                <a
+                  href="https://docs.google.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    padding: "0.85rem 1rem", borderRadius: "12px",
+                    background: "var(--surface)", color: "var(--foreground)",
+                    border: "1px solid var(--border)", fontWeight: 600, fontSize: "0.85rem",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
+                    textDecoration: "none"
+                  }}
+                >
+                  🌐 Google Docs
+                </a>
+              </div>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "1rem", opacity: 0.5 }}>
@@ -3598,7 +3663,20 @@ export default function Home() {
 
             {/* Option 2: Paste Google Doc Link */}
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              <label style={{ fontSize: "0.85rem", fontWeight: 700, opacity: 0.85 }}>Google Doc Web Share Link:</label>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <label style={{ fontSize: "0.85rem", fontWeight: 700, opacity: 0.85 }}>Google Doc Web Share Link:</label>
+                <button
+                  type="button"
+                  onClick={handlePasteClipboard}
+                  style={{
+                    padding: "3px 8px", borderRadius: "8px", fontSize: "0.75rem", fontWeight: 600,
+                    background: "var(--primary-glow)", color: "var(--primary)", border: "1px solid var(--primary)",
+                    cursor: "pointer"
+                  }}
+                >
+                  📋 Paste Link
+                </button>
+              </div>
               <input
                 type="text"
                 placeholder="https://docs.google.com/document/d/..."
