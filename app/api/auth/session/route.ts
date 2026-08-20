@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     // Determine final subscription status, inheriting from parent if linked
     let subscriptionStatus = user.subscriptionStatus;
     let subscriptionTier = user.subscriptionTier;
-    let profileLimit = user.profileLimit;
+    let profileLimit = user.profileLimit || 1;
     let parentEmail = null;
     if (user.parentId) {
       const parent = await prisma.user.findUnique({
@@ -35,6 +35,14 @@ export async function GET(req: NextRequest) {
           profileLimit = parent.profileLimit;
         }
       }
+    }
+
+    const isOwnerOrPro = user.email.toLowerCase() === 'joeker10@gmail.com' || subscriptionTier === 'PROFESSIONAL' || subscriptionTier === 'UNLIMITED';
+    if (isOwnerOrPro) {
+      profileLimit = 9999;
+      subscriptionStatus = 'SUBSCRIBED';
+    } else if (subscriptionStatus === 'SUBSCRIBED') {
+      profileLimit = Math.max(profileLimit, 4);
     }
 
     // If this is a parent account, fetch linked sub-accounts

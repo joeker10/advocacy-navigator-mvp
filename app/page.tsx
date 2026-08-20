@@ -1060,13 +1060,14 @@ export default function Home() {
     e.preventDefault();
     if (!newChildName.trim()) return;
     
-    // Determine limit (fallback to 0 if user is not loaded or unsubscribed)
-    const limit = user?.profileLimit ?? 0;
+    // Determine limit (Owner/Unlimited gets 9999, Subscribed gets 4+, Free gets 1)
+    const isOwnerOrPro = user?.email?.toLowerCase() === 'joeker10@gmail.com' || user?.subscriptionTier === 'PROFESSIONAL' || user?.subscriptionTier === 'UNLIMITED';
+    const limit = isOwnerOrPro ? 9999 : (user?.subscriptionStatus === 'SUBSCRIBED' ? Math.max(user?.profileLimit ?? 4, 4) : (user?.profileLimit ?? 1));
     if (childProfiles.length >= limit) {
       if (limit === 0) {
         alert("🔒 Child profiles are a premium feature. Please subscribe or redeem a coupon in Settings to unlock child profiles.");
       } else {
-        alert(`Limit reached: Your account tier allows up to ${limit} child profile(s).`);
+        alert(`Limit reached: Your account allows up to ${limit} child profile(s).`);
       }
       return;
     }
@@ -2540,22 +2541,32 @@ export default function Home() {
               )}
 
               {/* Add Profile Form */}
-              {childProfiles.length >= (user?.profileLimit ?? 1) ? (
-                <div style={{ fontSize: "0.8rem", opacity: 0.7, padding: "8px 12px", background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", borderRadius: "8px", color: "#fbbf24" }}>
-                  ⚠️ Profile limit reached ({childProfiles.length} of {user?.profileLimit ?? 1}). Upgrade or redeem a coupon to add more profiles.
-                </div>
-              ) : (
-                <form onSubmit={handleAddChildProfile} style={{ display: "flex", gap: "0.5rem" }}>
-                  <input 
-                    type="text" 
-                    placeholder="Child's Name" 
-                    value={newChildName} 
-                    onChange={e => setNewChildName(e.target.value)} 
-                    style={{ flex: 1, padding: "0.6rem 1rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }} 
-                  />
-                  <button type="submit" style={{ padding: "0.6rem 1.2rem", borderRadius: "8px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: "pointer" }}>Add</button>
-                </form>
-              )}
+              {(() => {
+                const isOwnerOrPro = user?.email?.toLowerCase() === 'joeker10@gmail.com' || user?.subscriptionTier === 'PROFESSIONAL' || user?.subscriptionTier === 'UNLIMITED';
+                const effectiveLimit = isOwnerOrPro ? 9999 : (user?.subscriptionStatus === 'SUBSCRIBED' ? Math.max(user?.profileLimit ?? 4, 4) : (user?.profileLimit ?? 1));
+                const isLimitReached = childProfiles.length >= effectiveLimit;
+
+                if (isLimitReached) {
+                  return (
+                    <div style={{ fontSize: "0.8rem", opacity: 0.7, padding: "8px 12px", background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", borderRadius: "8px", color: "#fbbf24" }}>
+                      ⚠️ Profile limit reached ({childProfiles.length} of {effectiveLimit}). Upgrade or redeem a coupon to add more profiles.
+                    </div>
+                  );
+                }
+
+                return (
+                  <form onSubmit={handleAddChildProfile} style={{ display: "flex", gap: "0.5rem" }}>
+                    <input 
+                      type="text" 
+                      placeholder="Child's Name" 
+                      value={newChildName} 
+                      onChange={e => setNewChildName(e.target.value)} 
+                      style={{ flex: 1, padding: "0.6rem 1rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }} 
+                    />
+                    <button type="submit" style={{ padding: "0.6rem 1.2rem", borderRadius: "8px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: "pointer" }}>Add</button>
+                  </form>
+                );
+              })()}
             </div>
 
             {/* Help & Support Section */}

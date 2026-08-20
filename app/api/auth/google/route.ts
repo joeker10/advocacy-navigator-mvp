@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     // Determine subscription status
     let subscriptionStatus = user.subscriptionStatus;
     let subscriptionTier = user.subscriptionTier;
-    let profileLimit = user.profileLimit;
+    let profileLimit = user.profileLimit || 1;
     if (user.parentId) {
       const parent = await prisma.user.findUnique({
         where: { id: user.parentId }
@@ -77,6 +77,14 @@ export async function POST(req: NextRequest) {
         subscriptionTier = parent.subscriptionTier;
         profileLimit = parent.profileLimit;
       }
+    }
+
+    const isOwnerOrPro = user.email.toLowerCase() === 'joeker10@gmail.com' || subscriptionTier === 'PROFESSIONAL' || subscriptionTier === 'UNLIMITED';
+    if (isOwnerOrPro) {
+      profileLimit = 9999;
+      subscriptionStatus = 'SUBSCRIBED';
+    } else if (subscriptionStatus === 'SUBSCRIBED') {
+      profileLimit = Math.max(profileLimit, 4);
     }
 
     // Sign session JWT
