@@ -294,6 +294,9 @@ export async function renameInsight(id: string, newName: string) {
 }
 
 export async function updateInsightProfile(id: string, childId?: string) {
+  const normalizedChildId = childId && childId !== 'general' ? childId : undefined;
+  let updatedRecord: any = null;
+
   try {
     const db = await getDB();
     if (db) {
@@ -301,30 +304,52 @@ export async function updateInsightProfile(id: string, childId?: string) {
       const store = tx.objectStore('saved_insights');
       const record = await store.get(id);
       if (record) {
-        record.childId = childId;
+        record.childId = normalizedChildId;
+        if (normalizedChildId) {
+          const child = await db.get('child_profiles', normalizedChildId);
+          const childName = child ? child.name : "Child";
+          const timeStr = new Date(record.timestamp || Date.now()).toLocaleString();
+          record.name = `${childName} - ${timeStr}`;
+        } else {
+          const timeStr = new Date(record.timestamp || Date.now()).toLocaleString();
+          record.name = `General - ${timeStr}`;
+        }
         await store.put(record);
         await tx.done;
-        return record;
+        updatedRecord = record;
       }
     }
   } catch (err) {
     console.warn("IndexedDB updateInsightProfile failed, trying LocalStorage fallback:", err);
   }
 
-  // LocalStorage fallback
+  // Always update LocalStorage fallback
   try {
     const existingStr = localStorage.getItem("spednav_insights_fallback") || "[]";
     const existing = JSON.parse(existingStr);
     const index = existing.findIndex((item: any) => item.id === id);
     if (index !== -1) {
-      existing[index].childId = childId;
+      existing[index].childId = normalizedChildId;
+      const timeStr = new Date(existing[index].timestamp || Date.now()).toLocaleString();
+      existing[index].name = normalizedChildId ? `Child - ${timeStr}` : `General - ${timeStr}`;
       localStorage.setItem("spednav_insights_fallback", JSON.stringify(existing));
-      return existing[index];
+      if (!updatedRecord) updatedRecord = existing[index];
     }
   } catch (e) {
     console.error("LocalStorage fallback update failed:", e);
   }
-  return null;
+
+  // Trigger sync in background
+  if (updatedRecord) {
+    try {
+      const { syncItem } = await import('./sync');
+      await syncItem('insight', updatedRecord);
+    } catch (sErr) {
+      console.warn("Failed to sync updated insight to server:", sErr);
+    }
+  }
+
+  return updatedRecord;
 }
 
 // Child Profiles Management API

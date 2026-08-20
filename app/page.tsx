@@ -2,7 +2,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { getUIPreference, setUIPreference } from "@/lib/storage";
 import ThemeToggle from "@/app/components/ThemeToggle";
-import { cacheVerifiedDocument, getOfflineDocuments, saveInsight, getSavedInsights, deleteInsight, saveDocumentEmbedding, getDocumentEmbeddings, cosineSimilarity, getChildProfiles } from "@/lib/indexeddb";
+import { cacheVerifiedDocument, getOfflineDocuments, saveInsight, getSavedInsights, deleteInsight, updateInsightProfile, saveDocumentEmbedding, getDocumentEmbeddings, cosineSimilarity, getChildProfiles } from "@/lib/indexeddb";
 
 const safeUUID = () => {
   if (typeof window !== "undefined" && window.crypto && window.crypto.randomUUID) {
@@ -429,6 +429,19 @@ export default function Home() {
     }
   };
 
+  const handleMoveInsightProfile = async (insightId: string, newChildId: string) => {
+    try {
+      const updated = await updateInsightProfile(insightId, newChildId);
+      if (updated) {
+        setVaultInsights(prev => prev.map(item => item.id === insightId ? updated : item));
+        triggerHaptic();
+      }
+    } catch (e) {
+      console.error("Failed to update insight profile assignment:", e);
+      alert("Failed to move insight.");
+    }
+  };
+
   const [isSubscribedToNewsletter, setIsSubscribedToNewsletter] = useState(false);
 
   useEffect(() => {
@@ -764,7 +777,6 @@ export default function Home() {
           clientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
           serverClientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
           scopes: ['profile', 'email'],
-          grantOfflineAccess: true,
         });
 
         const userResult = await GoogleAuth.signIn();
@@ -2173,18 +2185,45 @@ export default function Home() {
                           boxShadow: "var(--shadow-sm)"
                         }}
                       >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
-                          <div>
-                            <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--primary)" }}>
-                              {item.name || "Saved Insight"}
-                            </span>
-                            {linkedChild && (
-                              <span style={{ marginLeft: "8px", fontSize: "0.75rem", padding: "2px 8px", borderRadius: "10px", background: "var(--primary-glow)", color: "var(--primary)", fontWeight: 600 }}>
-                                👦 {linkedChild.name}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", flexWrap: "wrap" }}>
+                          <div style={{ flex: 1, minWidth: "200px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                              <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--primary)" }}>
+                                {item.name || "Saved Insight"}
                               </span>
-                            )}
+                              {linkedChild && (
+                                <span style={{ fontSize: "0.75rem", padding: "2px 8px", borderRadius: "10px", background: "var(--primary-glow)", color: "var(--primary)", fontWeight: 600 }}>
+                                  👦 {linkedChild.name}
+                                </span>
+                              )}
+                            </div>
                             <div style={{ fontSize: "0.75rem", opacity: 0.5, marginTop: "2px" }}>
                               {new Date(item.timestamp).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                            </div>
+
+                            {/* Move to Profile Selector */}
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "8px" }}>
+                              <span style={{ fontSize: "0.7rem", fontWeight: 700, opacity: 0.7 }}>PROFILE:</span>
+                              <select
+                                value={item.childId || "general"}
+                                onChange={(e) => handleMoveInsightProfile(item.id, e.target.value)}
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "12px",
+                                  fontSize: "0.75rem",
+                                  fontWeight: 700,
+                                  background: "var(--background)",
+                                  color: "var(--foreground)",
+                                  border: "1px solid var(--primary)",
+                                  cursor: "pointer",
+                                  outline: "none"
+                                }}
+                              >
+                                <option value="general">🌍 General Account</option>
+                                {childProfiles.map(child => (
+                                  <option key={child.id} value={child.id}>👦 {child.name}</option>
+                                ))}
+                              </select>
                             </div>
                           </div>
 
@@ -3218,18 +3257,41 @@ export default function Home() {
                   <p style={{ fontSize: "0.95rem", whiteSpace: "pre-wrap" }}>{renderTextWithEmailBreaks(msg.text)}</p>
                   
                   {msg.role === 'model' && (
-                    <button 
-                      onClick={() => {
-                        const previousQuery = i > 0 && messages[i-1].role === 'user' ? messages[i-1].text : "General Inquiry";
-                        handleSaveInsight(previousQuery, msg.text);
-                      }}
-                      style={{
-                        marginTop: "1rem", padding: "6px 12px", fontSize: "0.75rem", fontWeight: 600, 
-                        background: "var(--background)", color: "var(--foreground)", border: "1px solid var(--border)",
-                        borderRadius: "12px", cursor: "pointer", transition: "all var(--transition-fast)", opacity: 0.8
-                      }}>
-                      ⭐ Save Insight
-                    </button>
+                    <div style={{ marginTop: "1rem", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <button 
+                        onClick={() => {
+                          const previousQuery = i > 0 && messages[i-1].role === 'user' ? messages[i-1].text : "General Inquiry";
+                          handleSaveInsight(previousQuery, msg.text);
+                        }}
+                        style={{
+                          padding: "6px 14px", fontSize: "0.75rem", fontWeight: 700, 
+                          background: "var(--background)", color: "var(--foreground)", border: "1px solid var(--border)",
+                          borderRadius: "12px", cursor: "pointer", transition: "all var(--transition-fast)", opacity: 0.9,
+                          display: "flex", alignItems: "center", gap: "6px"
+                        }}>
+                        ⭐ Save Insight {selectedChildId !== "general" ? `(👦 ${childProfiles.find(c => c.id === selectedChildId)?.name || 'Child'})` : "(🌍 General)"}
+                      </button>
+
+                      {childProfiles.length > 0 && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                          <span style={{ fontSize: "0.7rem", opacity: 0.6, fontWeight: 700 }}>TO:</span>
+                          <select
+                            value={selectedChildId}
+                            onChange={(e) => setSelectedChildId(e.target.value)}
+                            style={{
+                              padding: "4px 8px", fontSize: "0.75rem", fontWeight: 700,
+                              borderRadius: "10px", border: "1px solid var(--glass-border)",
+                              background: "var(--surface)", color: "var(--foreground)", cursor: "pointer"
+                            }}
+                          >
+                            <option value="general">🌍 General</option>
+                            {childProfiles.map(child => (
+                              <option key={child.id} value={child.id}>👦 {child.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               ))
