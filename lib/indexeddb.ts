@@ -210,7 +210,13 @@ export async function getSavedInsights() {
     console.error("Failed to read LocalStorage fallback:", e);
   }
 
-  const combined = [...dbInsights, ...localInsights];
+  const map = new Map<string, any>();
+  for (const item of [...dbInsights, ...localInsights]) {
+    if (item && item.id) {
+      map.set(item.id, item);
+    }
+  }
+  const combined = Array.from(map.values());
   combined.sort((a, b) => b.timestamp - a.timestamp);
   return combined;
 }

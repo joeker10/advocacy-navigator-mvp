@@ -82,7 +82,15 @@ export async function POST(req: NextRequest) {
     if (Array.isArray(savedInsights)) {
       for (const i of savedInsights) {
         if (!i.id || !i.query || !i.response) continue;
-        const childIdVal = i.childId && i.childId !== 'general' ? i.childId : null;
+
+        let childIdVal: string | null = null;
+        if (i.childId && i.childId !== 'general') {
+          const existingChild = await prisma.childProfile.findUnique({ where: { id: i.childId } });
+          if (existingChild) {
+            childIdVal = i.childId;
+          }
+        }
+
         await prisma.savedInsight.upsert({
           where: { id: i.id },
           update: {
