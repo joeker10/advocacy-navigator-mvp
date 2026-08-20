@@ -446,6 +446,24 @@ export default function Home() {
 
   useEffect(() => {
     setIsSubscribedToNewsletter(localStorage.getItem("spednav_newsletter_subscribed") === "true");
+
+    const handleAuthMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'GOOGLE_AUTH_TOKEN' && event.data?.token) {
+        const authToken = event.data.token;
+        localStorage.setItem("spednav_auth_token", authToken);
+        setToken(authToken);
+        setIsAuthenticated(true);
+        fetch(`${API_URL}/api/auth/session`, {
+          headers: { Authorization: `Bearer ${authToken}` }
+        }).then(r => r.json()).then(d => {
+          if (d.user) setUser(d.user);
+          syncWithServer(authToken);
+        }).catch(console.error);
+      }
+    };
+
+    window.addEventListener('message', handleAuthMessage);
+    return () => window.removeEventListener('message', handleAuthMessage);
   }, []);
 
   const handleToggleNewsletterSubscription = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -772,35 +790,45 @@ export default function Home() {
       const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNativePlatform?.();
       
       if (isNative) {
-        const { GoogleAuth } = require('@codetrix-studio/capacitor-google-auth');
-        GoogleAuth.initialize({
-          clientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
-          serverClientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
-          scopes: ['profile', 'email'],
-        });
-
-        const userResult = await GoogleAuth.signIn();
-        const idToken = userResult?.authentication?.idToken || userResult?.idToken;
-        if (idToken) {
-          const res = await fetch(`${API_URL}/api/auth/google`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ idToken })
+        try {
+          const { GoogleAuth } = require('@codetrix-studio/capacitor-google-auth');
+          GoogleAuth.initialize({
+            clientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
+            serverClientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
+            scopes: ['profile', 'email'],
           });
-          const data = await res.json();
-          if (data.success && data.token) {
-            localStorage.setItem("spednav_auth_token", data.token);
-            setToken(data.token);
-            setUser(data.user);
-            setIsAuthenticated(true);
-            setAuthEmail("");
-            setAuthPassword("");
-            syncWithServer(data.token);
-          } else {
-            setAuthError(data.error || "Google authentication failed.");
+
+          const userResult = await GoogleAuth.signIn();
+          const idToken = userResult?.authentication?.idToken || userResult?.idToken;
+          if (idToken) {
+            const res = await fetch(`${API_URL}/api/auth/google`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ idToken })
+            });
+            const data = await res.json();
+            if (data.success && data.token) {
+              localStorage.setItem("spednav_auth_token", data.token);
+              setToken(data.token);
+              setUser(data.user);
+              setIsAuthenticated(true);
+              setAuthEmail("");
+              setAuthPassword("");
+              syncWithServer(data.token);
+              return;
+            } else {
+              setAuthError(data.error || "Google authentication failed.");
+              return;
+            }
           }
+        } catch (nativeErr: any) {
+          console.warn("Native GoogleAuth failed, launching secure browser auth fallback:", nativeErr);
+          const { Browser } = require('@capacitor/browser');
+          const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com&redirect_uri=https://www.thespecialeducationnavigator.app/api/auth/google/callback&response_type=code&scope=openid%20email%20profile&prompt=select_account`;
+          
+          await Browser.open({ url: oauthUrl, windowName: '_system' });
+          return;
         }
-        return;
       }
 
       // Web Flow using Google Identity Services OAuth 2.0 Popup
@@ -848,7 +876,9 @@ export default function Home() {
       if (g && g.accounts && g.accounts.id) {
         g.accounts.id.prompt();
       } else {
-        setAuthError("Google Identity services not ready. Please refresh the page.");
+        // Direct browser fallback on web if GIS not loaded
+        const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com&redirect_uri=https://www.thespecialeducationnavigator.app/api/auth/google/callback&response_type=code&scope=openid%20email%20profile&prompt=select_account`;
+        window.location.href = oauthUrl;
       }
     } catch (err: any) {
       console.error("Google Sign-In Error:", err);
