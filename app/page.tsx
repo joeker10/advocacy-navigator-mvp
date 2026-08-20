@@ -2,7 +2,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { getUIPreference, setUIPreference } from "@/lib/storage";
 import ThemeToggle from "@/app/components/ThemeToggle";
-import { cacheVerifiedDocument, getOfflineDocuments, saveInsight, saveDocumentEmbedding, getDocumentEmbeddings, cosineSimilarity, getChildProfiles } from "@/lib/indexeddb";
+import { cacheVerifiedDocument, getOfflineDocuments, saveInsight, getSavedInsights, deleteInsight, saveDocumentEmbedding, getDocumentEmbeddings, cosineSimilarity, getChildProfiles } from "@/lib/indexeddb";
 
 const safeUUID = () => {
   if (typeof window !== "undefined" && window.crypto && window.crypto.randomUUID) {
@@ -382,6 +382,52 @@ export default function Home() {
   const [verificationLoading, setVerificationLoading] = useState(false);
 
   const isWebLocked = !isNative && webInquiriesCount >= 1 && (!user || user.subscriptionStatus !== 'SUBSCRIBED');
+
+  // In-App Vault States
+  const [showVault, setShowVault] = useState(false);
+  const [vaultInsights, setVaultInsights] = useState<any[]>([]);
+  const [vaultFilter, setVaultFilter] = useState<string>("all");
+  const [vaultSearch, setVaultSearch] = useState<string>("");
+  const [vaultLoading, setVaultLoading] = useState(false);
+  const [copiedInsightId, setCopiedInsightId] = useState<string | null>(null);
+
+  const openVault = async () => {
+    setShowVault(true);
+    setVaultLoading(true);
+    try {
+      const items = await getSavedInsights();
+      setVaultInsights(items);
+    } catch (e) {
+      console.error("Failed to load insights for vault drawer:", e);
+    } finally {
+      setVaultLoading(false);
+    }
+  };
+
+  const handleDeleteVaultInsight = async (id: string) => {
+    if (confirm("Are you sure you want to delete this saved insight?")) {
+      try {
+        await deleteInsight(id);
+        setVaultInsights(prev => prev.filter(item => item.id !== id));
+        try {
+          const { deleteRemoteItem } = await import("@/lib/sync");
+          await deleteRemoteItem('insight', id);
+        } catch (sErr) {
+          console.warn("Failed to delete insight on remote server:", sErr);
+        }
+      } catch (e) {
+        alert("Failed to delete insight.");
+      }
+    }
+  };
+
+  const handleCopyVaultInsight = (id: string, text: string) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedInsightId(id);
+      setTimeout(() => setCopiedInsightId(null), 2000);
+    }
+  };
 
   const [isSubscribedToNewsletter, setIsSubscribedToNewsletter] = useState(false);
 
@@ -1113,8 +1159,12 @@ export default function Home() {
   const handleSaveInsight = async (query: string, response: string) => {
     try {
       const childId = selectedChildId === "general" ? undefined : selectedChildId;
-      await saveInsight(query, response, childId);
+      const saved = await saveInsight(query, response, childId);
       triggerHaptic();
+      
+      if (saved) {
+        setVaultInsights(prev => [saved, ...prev.filter(i => i.id !== saved.id)]);
+      }
       
       const childName = childId ? childProfiles.find(c => c.id === childId)?.name : null;
       if (childName) {
@@ -1902,14 +1952,22 @@ export default function Home() {
             </div>
           </div>
           <div style={{ display: "flex", gap: "12px" }}>
-            <a href="/saved" className="nav-btn-mobile-icon" onClick={(e) => handleLinkClick(e, "/saved")} style={{
-              padding: "8px 16px", borderRadius: "20px", display: "flex", gap: "8px", alignItems: "center",
-              background: "var(--primary-glow)", border: "1px solid var(--primary)", color: "var(--primary)",
-              cursor: "pointer", fontWeight: 600, fontSize: "0.875rem", textDecoration: "none",
-              boxShadow: "var(--shadow-sm)"
-            }}>⭐ <span className="button-text">Saved Insights</span></a>
+            <button 
+              type="button"
+              onClick={openVault} 
+              className="nav-btn-mobile-icon" 
+              style={{
+                padding: "8px 16px", borderRadius: "20px", display: "flex", gap: "8px", alignItems: "center",
+                background: "var(--primary-glow)", border: "1px solid var(--primary)", color: "var(--primary)",
+                cursor: "pointer", fontWeight: 600, fontSize: "0.875rem",
+                boxShadow: "var(--shadow-sm)"
+              }}
+            >
+              ⭐ <span className="button-text">Saved Insights</span>
+            </button>
             
             <button 
+              type="button"
               onClick={() => setShowSettings(true)}
               className="nav-btn-mobile-icon"
               style={{
@@ -1945,6 +2003,13 @@ export default function Home() {
           zIndex: 49,
           boxShadow: "var(--shadow-md)"
         }} className="animate-slide-up">
+          <button
+            type="button"
+            onClick={() => { setIsMobileMenuOpen(false); openVault(); }}
+            style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--primary)", display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", width: "100%", textAlign: "left", cursor: "pointer" }}
+          >
+            ⭐ Saved Insights Vault
+          </button>
           <a href="/home" onClick={(e) => handleLinkClick(e, "/home")} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             🏠 Home
           </a>
@@ -1962,6 +2027,212 @@ export default function Home() {
           </a>
           <div style={{ display: "flex", justifyContent: "center", padding: "1rem 0 0.5rem" }}>
             <ThemeToggle />
+          </div>
+        </div>
+      )}
+
+      {/* In-App Vault & Saved Insights Drawer / Modal */}
+      {showVault && (
+        <div 
+          style={{ 
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0, 
+            background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+            zIndex: 100, display: "flex", justifyContent: "flex-end" 
+          }} 
+          onClick={() => setShowVault(false)}
+        >
+          <div 
+            className="glass-panel animate-slide-up" 
+            style={{ 
+              width: "100%", maxWidth: "600px", height: "100%", borderRadius: "0", 
+              background: "var(--background-end)", borderLeft: "1px solid var(--glass-border)", 
+              padding: "2rem 1.5rem", overflowY: "auto", display: "flex", flexDirection: "column", gap: "1.5rem" 
+            }} 
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "1px solid var(--glass-border)", paddingBottom: "1rem" }}>
+              <div>
+                <h2 style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--primary)", display: "flex", alignItems: "center", gap: "8px" }}>
+                  ⭐ Saved Insights Vault
+                </h2>
+                <p style={{ fontSize: "0.85rem", opacity: 0.7, marginTop: "0.25rem" }}>
+                  Stored securely offline on your device &amp; synced to your account.
+                </p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowVault(false)} 
+                style={{ background: "transparent", border: "none", fontSize: "1.75rem", color: "var(--foreground)", cursor: "pointer", padding: "0 0.5rem" }}
+                aria-label="Close Vault"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Search and Filters */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <input
+                type="text"
+                value={vaultSearch}
+                onChange={e => setVaultSearch(e.target.value)}
+                placeholder="🔍 Search saved insights..."
+                style={{
+                  width: "100%", padding: "10px 14px", borderRadius: "10px",
+                  background: "var(--surface)", border: "1px solid var(--border)",
+                  color: "var(--foreground)", fontSize: "0.9rem"
+                }}
+              />
+
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => setVaultFilter("all")}
+                  style={{
+                    padding: "6px 12px", borderRadius: "16px", fontSize: "0.8rem", fontWeight: 600,
+                    cursor: "pointer", border: "1px solid var(--border)",
+                    background: vaultFilter === "all" ? "var(--primary)" : "var(--surface)",
+                    color: vaultFilter === "all" ? "white" : "var(--foreground)",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  🌎 All ({vaultInsights.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVaultFilter("general")}
+                  style={{
+                    padding: "6px 12px", borderRadius: "16px", fontSize: "0.8rem", fontWeight: 600,
+                    cursor: "pointer", border: "1px solid var(--border)",
+                    background: vaultFilter === "general" ? "var(--primary)" : "var(--surface)",
+                    color: vaultFilter === "general" ? "white" : "var(--foreground)",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  📥 General ({vaultInsights.filter(i => !i.childId || i.childId === 'general').length})
+                </button>
+                {childProfiles.map(child => (
+                  <button
+                    key={child.id}
+                    type="button"
+                    onClick={() => setVaultFilter(child.id)}
+                    style={{
+                      padding: "6px 12px", borderRadius: "16px", fontSize: "0.8rem", fontWeight: 600,
+                      cursor: "pointer", border: "1px solid var(--border)",
+                      background: vaultFilter === child.id ? "var(--primary)" : "var(--surface)",
+                      color: vaultFilter === child.id ? "white" : "var(--foreground)",
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    👦 {child.name} ({vaultInsights.filter(i => i.childId === child.id).length})
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Insight List */}
+            {vaultLoading ? (
+              <div style={{ textAlign: "center", padding: "2rem", opacity: 0.7 }}>
+                <p>Loading your offline vault...</p>
+              </div>
+            ) : vaultInsights.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "3rem 1rem", background: "var(--surface)", borderRadius: "12px", border: "1px solid var(--border)", opacity: 0.8 }}>
+                <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>📭</div>
+                <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>Your Vault is Empty</h3>
+                <p style={{ fontSize: "0.85rem", opacity: 0.7 }}>
+                  Click <strong>&quot;⭐ Save Insight&quot;</strong> on any AI response in the dashboard to store it securely offline.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                {vaultInsights
+                  .filter(item => {
+                    if (vaultFilter === "general") return !item.childId || item.childId === "general";
+                    if (vaultFilter !== "all") return item.childId === vaultFilter;
+                    return true;
+                  })
+                  .filter(item => {
+                    if (!vaultSearch.trim()) return true;
+                    const q = vaultSearch.toLowerCase();
+                    return (item.query || "").toLowerCase().includes(q) || 
+                           (item.response || "").toLowerCase().includes(q) ||
+                           (item.name || "").toLowerCase().includes(q);
+                  })
+                  .map(item => {
+                    const linkedChild = childProfiles.find(c => c.id === item.childId);
+                    return (
+                      <div 
+                        key={item.id} 
+                        style={{ 
+                          background: "var(--surface)", 
+                          border: "1px solid var(--glass-border)", 
+                          borderRadius: "12px", 
+                          padding: "1.25rem",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.75rem",
+                          boxShadow: "var(--shadow-sm)"
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                          <div>
+                            <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--primary)" }}>
+                              {item.name || "Saved Insight"}
+                            </span>
+                            {linkedChild && (
+                              <span style={{ marginLeft: "8px", fontSize: "0.75rem", padding: "2px 8px", borderRadius: "10px", background: "var(--primary-glow)", color: "var(--primary)", fontWeight: 600 }}>
+                                👦 {linkedChild.name}
+                              </span>
+                            )}
+                            <div style={{ fontSize: "0.75rem", opacity: 0.5, marginTop: "2px" }}>
+                              {new Date(item.timestamp).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyVaultInsight(item.id, item.response)}
+                              style={{
+                                padding: "4px 8px", fontSize: "0.75rem", borderRadius: "6px",
+                                background: copiedInsightId === item.id ? "var(--success-glow)" : "var(--background)",
+                                border: `1px solid ${copiedInsightId === item.id ? "var(--success)" : "var(--border)"}`,
+                                color: copiedInsightId === item.id ? "var(--success)" : "var(--foreground)",
+                                cursor: "pointer", fontWeight: 600
+                              }}
+                              title="Copy response to clipboard"
+                            >
+                              {copiedInsightId === item.id ? "✅ Copied" : "📋 Copy"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteVaultInsight(item.id)}
+                              style={{
+                                padding: "4px 8px", fontSize: "0.75rem", borderRadius: "6px",
+                                background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.3)",
+                                color: "#f87171", cursor: "pointer", fontWeight: 600
+                              }}
+                              title="Delete insight"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+
+                        {item.query && (
+                          <div style={{ background: "var(--primary-glow)", padding: "0.6rem 0.8rem", borderRadius: "8px", fontSize: "0.85rem", border: "1px solid var(--glass-border)" }}>
+                            <strong style={{ color: "var(--primary)", display: "block", fontSize: "0.75rem", marginBottom: "2px", textTransform: "uppercase" }}>Question / Topic:</strong>
+                            {item.query}
+                          </div>
+                        )}
+
+                        <div style={{ fontSize: "0.9rem", lineHeight: "1.5", whiteSpace: "pre-wrap", maxHeight: "250px", overflowY: "auto", paddingRight: "4px" }}>
+                          {renderTextWithEmailBreaks(item.response)}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
         </div>
       )}
