@@ -1,4 +1,4 @@
-import { getChildProfiles, getSavedInsights, getDB } from './indexeddb';
+import { getChildProfiles, getSavedInsights, getDB, getActiveUserEmail, setActiveUserEmail } from './indexeddb';
 
 const getApiUrl = () => {
   const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNativePlatform?.();
@@ -45,31 +45,18 @@ export async function deleteRemoteItem(type: 'profile' | 'insight', id: string) 
   }
 }
 
-export async function fullSync() {
+export async function fullSync(userEmail?: string) {
   if (typeof window === 'undefined') return;
   const token = localStorage.getItem("spednav_auth_token");
   if (!token) return;
 
+  const activeEmail = (userEmail || getActiveUserEmail() || "").toLowerCase().trim();
+  if (activeEmail) {
+    setActiveUserEmail(activeEmail);
+  }
+
   try {
-    const localProfiles = await getChildProfiles();
-    const localInsights = await getSavedInsights();
-
-    // 1. Upload local data
-    if (localProfiles.length > 0 || localInsights.length > 0) {
-      await fetch(`${getApiUrl()}/api/auth/sync`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          childProfiles: localProfiles,
-          savedInsights: localInsights
-        })
-      });
-    }
-
-    // 2. Fetch unified state
+    // 1. Fetch server state first
     const res = await fetch(`${getApiUrl()}/api/auth/sync`, {
       method: 'GET',
       headers: {
@@ -80,17 +67,23 @@ export async function fullSync() {
     if (data.success) {
       const db = await getDB();
       if (db) {
-        // Write child profiles
+        // Write child profiles with active userEmail tag
         const tx1 = db.transaction('child_profiles', 'readwrite');
         for (const p of data.childProfiles) {
-          await tx1.objectStore('child_profiles').put(p);
+          await tx1.objectStore('child_profiles').put({
+            ...p,
+            userEmail: activeEmail || undefined
+          });
         }
         await tx1.done;
 
-        // Write saved insights
+        // Write saved insights with active userEmail tag
         const tx2 = db.transaction('saved_insights', 'readwrite');
         for (const i of data.savedInsights) {
-          await tx2.objectStore('saved_insights').put(i);
+          await tx2.objectStore('saved_insights').put({
+            ...i,
+            userEmail: activeEmail || undefined
+          });
         }
         await tx2.done;
       }

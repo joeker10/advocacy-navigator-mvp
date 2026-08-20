@@ -125,9 +125,25 @@ export async function getOfflineDocuments() {
   return await db.getAll('documents');
 }
 
-export async function saveInsight(query: string, response: string, childId?: string, name?: string) {
+export function getActiveUserEmail(): string | null {
+  if (typeof window === 'undefined') return null;
+  const email = localStorage.getItem("spednav_active_user_email");
+  return email ? email.toLowerCase().trim() : null;
+}
+
+export function setActiveUserEmail(email: string | null) {
+  if (typeof window === 'undefined') return;
+  if (email) {
+    localStorage.setItem("spednav_active_user_email", email.toLowerCase().trim());
+  } else {
+    localStorage.removeItem("spednav_active_user_email");
+  }
+}
+
+export async function saveInsight(query: string, response: string, childId?: string, name?: string, userEmail?: string) {
   const id = safeUUID();
   const timestampStr = new Date().toLocaleString();
+  const activeEmail = (userEmail || getActiveUserEmail() || "").toLowerCase().trim();
   let resolvedName = name;
   let savedItem: any = null;
 
@@ -146,6 +162,7 @@ export async function saveInsight(query: string, response: string, childId?: str
         timestamp: Date.now(),
         childId,
         name: resolvedName,
+        userEmail: activeEmail || undefined,
       };
       await db.put('saved_insights', savedItem);
     }
@@ -153,13 +170,14 @@ export async function saveInsight(query: string, response: string, childId?: str
     console.warn("IndexedDB saveInsight failed, falling back to LocalStorage:", err);
   }
 
-  // Always persist to LocalStorage as guaranteed persistent backup
+  // Always persist to User-Scoped LocalStorage backup
   try {
-    const existingStr = localStorage.getItem("spednav_insights_fallback") || "[]";
+    const storageKey = activeEmail ? `spednav_insights_${activeEmail}` : "spednav_insights_fallback";
+    const existingStr = localStorage.getItem(storageKey) || "[]";
     const existing: any[] = JSON.parse(existingStr);
     const filtered = existing.filter((item: any) => item.id !== savedItem.id);
     filtered.push(savedItem);
-    localStorage.setItem("spednav_insights_fallback", JSON.stringify(filtered));
+    localStorage.setItem(storageKey, JSON.stringify(filtered));
   } catch (e) {
     console.error("LocalStorage backup write failed:", e);
   }
@@ -175,21 +193,31 @@ export async function saveInsight(query: string, response: string, childId?: str
   return savedItem;
 }
 
-export async function getSavedInsights() {
+export async function getSavedInsights(userEmail?: string) {
+  const activeEmail = (userEmail || getActiveUserEmail() || "").toLowerCase().trim();
   let dbInsights: any[] = [];
   try {
     const db = await getDB();
     if (db) {
-      dbInsights = await db.getAll('saved_insights');
+      const all: any[] = await db.getAll('saved_insights');
+      if (activeEmail) {
+        dbInsights = all.filter(item => {
+          const itemEmail = (item.userEmail || "").toLowerCase().trim();
+          return itemEmail === activeEmail || !itemEmail;
+        });
+      } else {
+        dbInsights = all.filter(item => !item.userEmail);
+      }
     }
   } catch (err) {
     console.warn("IndexedDB getSavedInsights failed, reading from LocalStorage:", err);
   }
 
-  // Load from LocalStorage fallback
+  // Load from User-Scoped LocalStorage fallback
   let localInsights: any[] = [];
   try {
-    const localStr = localStorage.getItem("spednav_insights_fallback");
+    const storageKey = activeEmail ? `spednav_insights_${activeEmail}` : "spednav_insights_fallback";
+    const localStr = localStorage.getItem(storageKey);
     if (localStr) {
       localInsights = JSON.parse(localStr);
     }
@@ -209,6 +237,7 @@ export async function getSavedInsights() {
 }
 
 export async function getInsightById(id: string) {
+  const activeEmail = getActiveUserEmail();
   try {
     const db = await getDB();
     if (db) {
@@ -220,7 +249,8 @@ export async function getInsightById(id: string) {
   }
 
   try {
-    const localStr = localStorage.getItem("spednav_insights_fallback");
+    const storageKey = activeEmail ? `spednav_insights_${activeEmail}` : "spednav_insights_fallback";
+    const localStr = localStorage.getItem(storageKey);
     if (localStr) {
       const local = JSON.parse(localStr);
       return local.find((item: any) => item.id === id) || null;
@@ -238,6 +268,7 @@ export async function getChildProfileById(id: string) {
 }
 
 export async function deleteInsight(id: string) {
+  const activeEmail = getActiveUserEmail();
   try {
     const db = await getDB();
     if (db) {
@@ -248,11 +279,12 @@ export async function deleteInsight(id: string) {
   }
 
   try {
-    const localStr = localStorage.getItem("spednav_insights_fallback");
+    const storageKey = activeEmail ? `spednav_insights_${activeEmail}` : "spednav_insights_fallback";
+    const localStr = localStorage.getItem(storageKey);
     if (localStr) {
       const local = JSON.parse(localStr);
       const filtered = local.filter((item: any) => item.id !== id);
-      localStorage.setItem("spednav_insights_fallback", JSON.stringify(filtered));
+      localStorage.setItem(storageKey, JSON.stringify(filtered));
     }
   } catch (e) {
     console.error("Failed to delete from LocalStorage fallback:", e);
@@ -260,6 +292,7 @@ export async function deleteInsight(id: string) {
 }
 
 export async function renameInsight(id: string, newName: string) {
+  const activeEmail = getActiveUserEmail();
   try {
     const db = await getDB();
     if (db) {
@@ -279,12 +312,13 @@ export async function renameInsight(id: string, newName: string) {
 
   // LocalStorage fallback rename
   try {
-    const existingStr = localStorage.getItem("spednav_insights_fallback") || "[]";
+    const storageKey = activeEmail ? `spednav_insights_${activeEmail}` : "spednav_insights_fallback";
+    const existingStr = localStorage.getItem(storageKey) || "[]";
     const existing = JSON.parse(existingStr);
     const index = existing.findIndex((item: any) => item.id === id);
     if (index !== -1) {
       existing[index].name = newName;
-      localStorage.setItem("spednav_insights_fallback", JSON.stringify(existing));
+      localStorage.setItem(storageKey, JSON.stringify(existing));
       return existing[index];
     }
   } catch (e) {
@@ -294,6 +328,7 @@ export async function renameInsight(id: string, newName: string) {
 }
 
 export async function updateInsightProfile(id: string, childId?: string) {
+  const activeEmail = getActiveUserEmail();
   const normalizedChildId = childId && childId !== 'general' ? childId : undefined;
   let updatedRecord: any = null;
 
@@ -325,14 +360,15 @@ export async function updateInsightProfile(id: string, childId?: string) {
 
   // Always update LocalStorage fallback
   try {
-    const existingStr = localStorage.getItem("spednav_insights_fallback") || "[]";
+    const storageKey = activeEmail ? `spednav_insights_${activeEmail}` : "spednav_insights_fallback";
+    const existingStr = localStorage.getItem(storageKey) || "[]";
     const existing = JSON.parse(existingStr);
     const index = existing.findIndex((item: any) => item.id === id);
     if (index !== -1) {
       existing[index].childId = normalizedChildId;
       const timeStr = new Date(existing[index].timestamp || Date.now()).toLocaleString();
       existing[index].name = normalizedChildId ? `Child - ${timeStr}` : `General - ${timeStr}`;
-      localStorage.setItem("spednav_insights_fallback", JSON.stringify(existing));
+      localStorage.setItem(storageKey, JSON.stringify(existing));
       if (!updatedRecord) updatedRecord = existing[index];
     }
   } catch (e) {
@@ -352,17 +388,30 @@ export async function updateInsightProfile(id: string, childId?: string) {
   return updatedRecord;
 }
 
-// Child Profiles Management API
-export async function getChildProfiles(): Promise<ChildProfile[]> {
+// Child Profiles Management API with User Isolation
+export async function getChildProfiles(userEmail?: string): Promise<ChildProfile[]> {
+  const activeEmail = (userEmail || getActiveUserEmail() || "").toLowerCase().trim();
   const db = await getDB();
   if (!db) return [];
-  return await db.getAll('child_profiles');
+  const all: any[] = await db.getAll('child_profiles');
+  if (activeEmail) {
+    return all.filter(p => {
+      const pEmail = (p.userEmail || "").toLowerCase().trim();
+      return pEmail === activeEmail || !pEmail;
+    });
+  }
+  return all.filter(p => !p.userEmail);
 }
 
-export async function saveChildProfile(profile: ChildProfile) {
+export async function saveChildProfile(profile: ChildProfile, userEmail?: string) {
+  const activeEmail = (userEmail || getActiveUserEmail() || "").toLowerCase().trim();
   const db = await getDB();
   if (!db) return;
-  await db.put('child_profiles', profile);
+  const profileWithUser = {
+    ...profile,
+    userEmail: activeEmail || (profile as any).userEmail || undefined
+  };
+  await db.put('child_profiles', profileWithUser);
 }
 
 export async function deleteChildProfile(id: string) {

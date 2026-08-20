@@ -395,7 +395,7 @@ export default function Home() {
     setShowVault(true);
     setVaultLoading(true);
     try {
-      const items = await getSavedInsights();
+      const items = await getSavedInsights(user?.email);
       setVaultInsights(items);
     } catch (e) {
       console.error("Failed to load insights for vault drawer:", e);
@@ -447,18 +447,20 @@ export default function Home() {
   useEffect(() => {
     setIsSubscribedToNewsletter(localStorage.getItem("spednav_newsletter_subscribed") === "true");
 
-    const handleAuthMessage = (event: MessageEvent) => {
+    const handleAuthMessage = async (event: MessageEvent) => {
       if (event.data?.type === 'GOOGLE_AUTH_TOKEN' && event.data?.token) {
         const authToken = event.data.token;
-        localStorage.setItem("spednav_auth_token", authToken);
-        setToken(authToken);
-        setIsAuthenticated(true);
-        fetch(`${API_URL}/api/auth/session`, {
-          headers: { Authorization: `Bearer ${authToken}` }
-        }).then(r => r.json()).then(d => {
-          if (d.user) setUser(d.user);
-          syncWithServer(authToken);
-        }).catch(console.error);
+        try {
+          const r = await fetch(`${API_URL}/api/auth/session`, {
+            headers: { Authorization: `Bearer ${authToken}` }
+          });
+          const d = await r.json();
+          if (d.user) {
+            await applyAuthenticatedUser(d.user, authToken);
+          }
+        } catch (e) {
+          console.error(e);
+        }
       }
     };
 
@@ -582,6 +584,33 @@ export default function Home() {
     });
   };
 
+  const applyAuthenticatedUser = async (userData: any, authToken: string) => {
+    const userEmail = (userData?.email || "").toLowerCase().trim();
+    localStorage.setItem("spednav_auth_token", authToken);
+    setToken(authToken);
+    setUser(userData);
+    setIsAuthenticated(true);
+    setAuthEmail("");
+    setAuthPassword("");
+    setAuthConfirmPassword("");
+    setShow2FAInput(false);
+    setTwoFactorCode("");
+
+    try {
+      const { getChildProfiles, getSavedInsights, setActiveUserEmail } = await import("@/lib/indexeddb");
+      setActiveUserEmail(userEmail);
+      const profiles = await getChildProfiles(userEmail);
+      setChildProfiles(profiles);
+      const insights = await getSavedInsights(userEmail);
+      setVaultInsights(insights);
+    } catch (e) {
+      console.error("Local user data isolation load failed:", e);
+    }
+
+    // Sync cloud state for this specific user
+    syncWithServer(authToken, userEmail);
+  };
+
   const fetchSession = async (authToken: string) => {
     try {
       const res = await fetch(`${API_URL}/api/auth/session`, {
@@ -591,9 +620,8 @@ export default function Home() {
         }
       });
       const data = await res.json();
-      if (data.success) {
-        setUser(data.user);
-        setIsAuthenticated(true);
+      if (data.success && data.user) {
+        await applyAuthenticatedUser(data.user, authToken);
       } else {
         localStorage.removeItem("spednav_auth_token");
         setToken(null);
@@ -606,13 +634,21 @@ export default function Home() {
     }
   };
 
-  const syncWithServer = async (authToken: string) => {
+  const syncWithServer = async (authToken: string, userEmail?: string) => {
     if (!authToken) return;
     try {
+      const activeEmail = (userEmail || user?.email || "").toLowerCase().trim();
       const { fullSync } = await import("@/lib/sync");
-      const data = await fullSync();
+      const data = await fullSync(activeEmail);
       if (data && data.success) {
-        setChildProfiles(data.childProfiles);
+        if (data.childProfiles) setChildProfiles(data.childProfiles);
+        if (data.savedInsights) setVaultInsights(data.savedInsights);
+      } else {
+        const { getChildProfiles: loadP, getSavedInsights: loadI } = await import("@/lib/indexeddb");
+        const p = await loadP(activeEmail);
+        setChildProfiles(p);
+        const i = await loadI(activeEmail);
+        setVaultInsights(i);
       }
     } catch (err) {
       console.error("Account synchronization failed:", err);
@@ -645,17 +681,8 @@ export default function Home() {
           setTemp2FAToken(data.tempToken);
           setShow2FAInput(true);
           setAuthError("");
-        } else if (data.token) {
-          localStorage.setItem("spednav_auth_token", data.token);
-          setToken(data.token);
-          setUser(data.user);
-          setIsAuthenticated(true);
-          setAuthEmail("");
-          setAuthPassword("");
-          setAuthConfirmPassword("");
-          setShow2FAInput(false);
-          setTwoFactorCode("");
-          syncWithServer(data.token);
+        } else if (data.token && data.user) {
+          await applyAuthenticatedUser(data.user, data.token);
         } else {
           setAuthError("Authentication failed: invalid token response.");
         }
@@ -683,14 +710,8 @@ export default function Home() {
                 body: JSON.stringify({ idToken: tokenVal })
               });
               const data = await res.json();
-              if (data.success && data.token) {
-                localStorage.setItem("spednav_auth_token", data.token);
-                setToken(data.token);
-                setUser(data.user);
-                setIsAuthenticated(true);
-                setAuthEmail("");
-                setAuthPassword("");
-                syncWithServer(data.token);
+              if (data.success && data.token && data.user) {
+                await applyAuthenticatedUser(data.user, data.token);
               } else {
                 setAuthError(data.error || "Google authentication failed.");
               }
@@ -728,12 +749,15 @@ export default function Home() {
     }
   }, [isAuthenticated]);
 
-  const handleGoogleDocImport = async () => {
-    if (!googleDocUrl.trim()) return;
+  const handleGoogleDocImport = async (targetUrl?: string) => {
+    const importUrl = (targetUrl || googleDocUrl).trim();
+    if (!importUrl) return;
     setIsImportingGoogleDoc(true);
     try {
-      const match = googleDocUrl.match(/\/document\/d\/([a-zA-Z0-9-_]+)/);
-      const docId = match ? match[1] : null;
+      const docMatch = importUrl.match(/\/document\/d\/([a-zA-Z0-9-_]+)/);
+      const driveMatch = importUrl.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
+      const idParamMatch = importUrl.match(/[?&]id=([a-zA-Z0-9-_]+)/);
+      const docId = docMatch ? docMatch[1] : (driveMatch ? driveMatch[1] : (idParamMatch ? idParamMatch[1] : null));
 
       let importedText = "";
       let docTitle = docId ? `Google_Doc_${docId.substring(0, 6)}` : "Google_Doc";
@@ -758,7 +782,7 @@ export default function Home() {
         const res = await fetch(`${API_URL}/api/import/googledoc`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: googleDocUrl })
+          body: JSON.stringify({ url: importUrl })
         });
         const data = await res.json();
         if (data.success && data.text) {
@@ -798,6 +822,44 @@ export default function Home() {
     }
   };
 
+  const handlePasteAndImport = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          setGoogleDocUrl(text.trim());
+          triggerHaptic();
+          setIsGoogleDocModalOpen(false);
+          await handleGoogleDocImport(text.trim());
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Clipboard auto-read failed:", e);
+    }
+
+    if (googleDocUrl.trim()) {
+      setIsGoogleDocModalOpen(false);
+      await handleGoogleDocImport();
+    } else {
+      alert("Please copy a Google Doc share link from Google Docs, or type/paste it here.");
+    }
+  };
+
+  const openGoogleDocModal = async () => {
+    setIsGoogleDocModalOpen(true);
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const clipText = await navigator.clipboard.readText();
+        if (clipText && (clipText.includes("docs.google.com") || clipText.includes("drive.google.com"))) {
+          setGoogleDocUrl(clipText.trim());
+        }
+      }
+    } catch (e) {
+      // Safe fallback
+    }
+  };
+
   const openGoogleDrivePicker = () => {
     const g = (window as any).google;
     const gapi = (window as any).gapi;
@@ -818,7 +880,7 @@ export default function Home() {
                 const docUrl = `https://docs.google.com/document/d/${doc[g.picker.Document.ID]}/edit`;
                 setGoogleDocUrl(docUrl);
                 setIsGoogleDocModalOpen(false);
-                await handleGoogleDocImport();
+                await handleGoogleDocImport(docUrl);
               }
             }
           })
@@ -900,14 +962,8 @@ export default function Home() {
                     body: JSON.stringify({ idToken: `mock_token_${userInfo.email}` })
                   });
                   const data = await res.json();
-                  if (data.success && data.token) {
-                    localStorage.setItem("spednav_auth_token", data.token);
-                    setToken(data.token);
-                    setUser(data.user);
-                    setIsAuthenticated(true);
-                    setAuthEmail("");
-                    setAuthPassword("");
-                    syncWithServer(data.token);
+                  if (data.success && data.token && data.user) {
+                    await applyAuthenticatedUser(data.user, data.token);
                   } else {
                     setAuthError(data.error || "Google authentication failed.");
                   }
@@ -1013,14 +1069,21 @@ export default function Home() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     localStorage.removeItem("spednav_auth_token");
+    try {
+      const { setActiveUserEmail } = await import("@/lib/indexeddb");
+      setActiveUserEmail(null);
+    } catch (e) {}
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
     setShowSettings(false);
     setMessages([]);
     setExtractedDocuments([]);
+    setChildProfiles([]);
+    setVaultInsights([]);
+    setSelectedChildId("general");
     setAppPromptCount(0);
     setShow2FAInput(false);
     setTwoFactorCode("");
@@ -1253,7 +1316,8 @@ export default function Home() {
   const handleSaveInsight = async (query: string, response: string) => {
     try {
       const childId = selectedChildId === "general" ? undefined : selectedChildId;
-      const saved = await saveInsight(query, response, childId);
+      const userEmail = user?.email;
+      const saved = await saveInsight(query, response, childId, undefined, userEmail);
       triggerHaptic();
       
       if (saved) {
@@ -2939,7 +3003,7 @@ export default function Home() {
               </button>
 
               <button 
-                onClick={() => setIsGoogleDocModalOpen(true)}
+                onClick={openGoogleDocModal}
                 disabled={isUploading || user?.subscriptionStatus !== 'SUBSCRIBED'}
                 style={{
                   flex: "1 1 180px", padding: "1rem", borderRadius: "16px",
@@ -3613,77 +3677,69 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Option 1: Search & Browse Google Drive */}
-            <div style={{ padding: "1.25rem", borderRadius: "16px", background: "var(--primary-glow)", border: "1px solid var(--primary)", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {/* 3 Simple Steps Banner */}
+            <div style={{ padding: "1rem 1.25rem", borderRadius: "14px", background: "var(--primary-glow)", border: "1px solid var(--primary)", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontSize: "1.25rem" }}>☁️</span>
-                <strong style={{ fontSize: "1rem", color: "var(--foreground)" }}>Select from Google Drive / Device</strong>
+                <span style={{ fontSize: "1.2rem" }}>📌</span>
+                <strong style={{ fontSize: "0.95rem", color: "var(--foreground)" }}>How to Import Any Google Doc in Seconds:</strong>
               </div>
-              <p style={{ fontSize: "0.85rem", opacity: 0.85, margin: 0 }}>
-                Choose Google Docs, Word documents, or PDFs directly from your Google Drive:
-              </p>
-              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={openGoogleDrivePicker}
-                  style={{
-                    flex: 1, minWidth: "180px",
-                    padding: "0.85rem 1.25rem", borderRadius: "12px",
-                    background: "var(--primary)", color: "white",
-                    border: "none", fontWeight: 700, fontSize: "0.95rem",
-                    cursor: "pointer", display: "flex", alignItems: "center",
-                    justifyContent: "center", gap: "0.5rem",
-                    boxShadow: "0 4px 14px var(--primary-glow)"
-                  }}
-                >
-                  🔍 Open Google Drive Picker
-                </button>
-                <a
-                  href="https://docs.google.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    padding: "0.85rem 1rem", borderRadius: "12px",
-                    background: "var(--surface)", color: "var(--foreground)",
-                    border: "1px solid var(--border)", fontWeight: 600, fontSize: "0.85rem",
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
-                    textDecoration: "none"
-                  }}
-                >
-                  🌐 Google Docs
-                </a>
+              <div style={{ fontSize: "0.85rem", opacity: 0.9, display: "flex", flexDirection: "column", gap: "0.35rem", lineHeight: 1.4 }}>
+                <div><strong>1.</strong> In the Google Docs or Drive app, open your document.</div>
+                <div><strong>2.</strong> Tap <strong>Share</strong> (or <strong>... &rarr; Share & export &rarr; Copy link</strong>).</div>
+                <div><strong>3.</strong> Return here and tap <strong>📋 Paste Link & Import</strong> below!</div>
               </div>
+            </div>
+
+            {/* 1-Tap Quick Action Buttons */}
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={handlePasteAndImport}
+                disabled={isImportingGoogleDoc}
+                style={{
+                  flex: "1 1 200px", padding: "1rem", borderRadius: "14px",
+                  background: "var(--primary)", color: "white",
+                  border: "none", fontWeight: 700, fontSize: "1rem",
+                  cursor: isImportingGoogleDoc ? "not-allowed" : "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                  boxShadow: "0 4px 14px var(--primary-glow)"
+                }}
+              >
+                {isImportingGoogleDoc ? "⏳ Importing Doc..." : "📋 Paste Link & Import Now"}
+              </button>
+
+              <a
+                href="https://docs.google.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  flex: "1 1 140px", padding: "1rem", borderRadius: "14px",
+                  background: "var(--surface)", color: "var(--foreground)",
+                  border: "1px solid var(--border)", fontWeight: 650, fontSize: "0.95rem",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
+                  textDecoration: "none"
+                }}
+              >
+                🌐 Open Google Docs
+              </a>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "1rem", opacity: 0.5 }}>
               <hr style={{ flex: 1, border: "none", borderTop: "1px solid var(--border)" }} />
-              <span style={{ fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase" }}>OR PASTE LINK</span>
+              <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>OR PASTE / EDIT LINK</span>
               <hr style={{ flex: 1, border: "none", borderTop: "1px solid var(--border)" }} />
             </div>
 
-            {/* Option 2: Paste Google Doc Link */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <label style={{ fontSize: "0.85rem", fontWeight: 700, opacity: 0.85 }}>Google Doc Web Share Link:</label>
-                <button
-                  type="button"
-                  onClick={handlePasteClipboard}
-                  style={{
-                    padding: "3px 8px", borderRadius: "8px", fontSize: "0.75rem", fontWeight: 600,
-                    background: "var(--primary-glow)", color: "var(--primary)", border: "1px solid var(--primary)",
-                    cursor: "pointer"
-                  }}
-                >
-                  📋 Paste Link
-                </button>
-              </div>
+            {/* Option 2: Manual Link Input */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <label style={{ fontSize: "0.85rem", fontWeight: 700, opacity: 0.85 }}>Google Doc Web Share Link:</label>
               <input
                 type="text"
                 placeholder="https://docs.google.com/document/d/..."
                 value={googleDocUrl}
                 onChange={e => setGoogleDocUrl(e.target.value)}
                 style={{
-                  padding: "0.8rem 1rem",
+                  padding: "0.85rem 1rem",
                   borderRadius: "12px",
                   border: "1px solid var(--border)",
                   background: "var(--background)",
