@@ -551,7 +551,9 @@ export default function Home() {
 
     async function loadProfiles() {
       try {
-        const profiles = await getChildProfiles();
+        const { getChildProfiles, getActiveUserEmail } = await import("@/lib/indexeddb");
+        const activeEmail = getActiveUserEmail();
+        const profiles = await getChildProfiles(activeEmail || undefined);
         setChildProfiles(profiles);
       } catch (err) {
         console.error("Failed to load child profiles on mount:", err);
@@ -1186,15 +1188,17 @@ export default function Home() {
       return;
     }
 
+    const activeEmail = (user?.email || "").toLowerCase().trim();
     const newProfile = {
       id: safeUUID(),
       name: newChildName.trim(),
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      userEmail: activeEmail || undefined
     };
 
     try {
       const { saveChildProfile } = await import("@/lib/indexeddb");
-      await saveChildProfile(newProfile);
+      await saveChildProfile(newProfile, activeEmail);
       setChildProfiles(prev => [...prev, newProfile]);
       setNewChildName("");
       const { syncItem } = await import("@/lib/sync");

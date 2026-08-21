@@ -14,6 +14,7 @@ export interface ChildProfile {
   grade?: string;
   dob?: string;
   timestamp: number;
+  userEmail?: string;
 }
 
 interface AdvocacyDB extends DBSchema {
@@ -35,6 +36,7 @@ interface AdvocacyDB extends DBSchema {
       timestamp: number;
       childId?: string; // Optional link to child profile
       name?: string; // Custom/default name
+      userEmail?: string;
     };
   };
   child_profiles: {
@@ -53,19 +55,14 @@ interface AdvocacyDB extends DBSchema {
     };
     indexes: { 'documentId': string };
   };
-  staged_files: {
+  offline_staged_files: {
     key: string;
     value: {
+      id: string;
       name: string;
-      file: File;
-      timestamp: number;
-    };
-  };
-  extracted_docs: {
-    key: string;
-    value: {
-      fileName: string;
-      extractedData: string; // stringified JSON
+      size: number;
+      type: string;
+      content: string; // Base64 data url or text
       timestamp: number;
     };
   };
@@ -73,50 +70,51 @@ interface AdvocacyDB extends DBSchema {
 
 let dbPromise: Promise<IDBPDatabase<AdvocacyDB>> | null = null;
 
-export async function getDB() {
+export function getDB() {
   if (typeof window === 'undefined') return null;
   if (!dbPromise) {
-    try {
-      dbPromise = openDB<AdvocacyDB>('AdvocacyOfflineDB', 5, {
-        upgrade(db) {
-          if (!db.objectStoreNames.contains('documents')) {
-            db.createObjectStore('documents', { keyPath: 'id' });
-          }
-          if (!db.objectStoreNames.contains('saved_insights')) {
-            db.createObjectStore('saved_insights', { keyPath: 'id' });
-          }
-          if (!db.objectStoreNames.contains('child_profiles')) {
-            db.createObjectStore('child_profiles', { keyPath: 'id' });
-          }
-          if (!db.objectStoreNames.contains('document_embeddings')) {
-            const store = db.createObjectStore('document_embeddings', { keyPath: 'id' });
-            store.createIndex('documentId', 'documentId');
-          }
-          if (!db.objectStoreNames.contains('staged_files')) {
-            db.createObjectStore('staged_files', { keyPath: 'name' });
-          }
-          if (!db.objectStoreNames.contains('extracted_docs')) {
-            db.createObjectStore('extracted_docs', { keyPath: 'fileName' });
-          }
-        },
-      });
-    } catch (err) {
-      console.warn("Failed to initialize IndexedDB offline database:", err);
-      return null;
-    }
+    dbPromise = openDB<AdvocacyDB>('advocacy_framework_db', 3, {
+      upgrade(db, oldVersion, newVersion, transaction) {
+        if (!db.objectStoreNames.contains('documents')) {
+          db.createObjectStore('documents', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('saved_insights')) {
+          db.createObjectStore('saved_insights', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('child_profiles')) {
+          db.createObjectStore('child_profiles', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('document_embeddings')) {
+          const embeddingStore = db.createObjectStore('document_embeddings', { keyPath: 'id' });
+          embeddingStore.createIndex('documentId', 'documentId');
+        }
+        if (!db.objectStoreNames.contains('offline_staged_files')) {
+          db.createObjectStore('offline_staged_files', { keyPath: 'id' });
+        }
+      },
+    });
   }
   return dbPromise;
 }
 
-export async function cacheVerifiedDocument(doc: { id: string, fileName: string, extractedData: any }) {
+export async function cacheVerifiedDocument(idOrObj: string | { id: string; fileName: string; extractedData: any }, fileName?: string, extractedData?: any) {
   const db = await getDB();
   if (!db) return;
-  await db.put('documents', {
-    id: doc.id,
-    fileName: doc.fileName,
-    extractedData: JSON.stringify(doc.extractedData),
-    timestamp: Date.now(),
-  });
+  if (typeof idOrObj === 'object') {
+    await db.put('documents', {
+      id: idOrObj.id,
+      fileName: idOrObj.fileName,
+      extractedData: typeof idOrObj.extractedData === 'string' ? idOrObj.extractedData : JSON.stringify(idOrObj.extractedData),
+      timestamp: Date.now(),
+    });
+  } else {
+    await db.put('documents', {
+      id: idOrObj,
+      fileName: fileName || '',
+      extractedData: typeof extractedData === 'string' ? extractedData : JSON.stringify(extractedData),
+      timestamp: Date.now(),
+    });
+  }
 }
 
 export async function getOfflineDocuments() {
@@ -203,7 +201,14 @@ export async function getSavedInsights(userEmail?: string) {
       if (activeEmail) {
         dbInsights = all.filter(item => {
           const itemEmail = (item.userEmail || "").toLowerCase().trim();
-          return itemEmail === activeEmail || !itemEmail;
+          if (itemEmail === activeEmail) return true;
+          // Claim legacy untagged items for admin/owner account only
+          if (!itemEmail && activeEmail === "joeker10@gmail.com") {
+            item.userEmail = "joeker10@gmail.com";
+            db.put('saved_insights', item);
+            return true;
+          }
+          return false;
         });
       } else {
         dbInsights = all.filter(item => !item.userEmail);
@@ -216,10 +221,15 @@ export async function getSavedInsights(userEmail?: string) {
   // Load from User-Scoped LocalStorage fallback
   let localInsights: any[] = [];
   try {
-    const storageKey = activeEmail ? `spednav_insights_${activeEmail}` : "spednav_insights_fallback";
-    const localStr = localStorage.getItem(storageKey);
-    if (localStr) {
-      localInsights = JSON.parse(localStr);
+    if (activeEmail) {
+      const storageKey = `spednav_insights_${activeEmail}`;
+      const localStr = localStorage.getItem(storageKey);
+      if (localStr) {
+        localInsights = JSON.parse(localStr);
+      } else if (activeEmail === "joeker10@gmail.com") {
+        const legacyStr = localStorage.getItem("spednav_insights_fallback");
+        if (legacyStr) localInsights = JSON.parse(legacyStr);
+      }
     }
   } catch (e) {
     console.error("Failed to read LocalStorage fallback:", e);
@@ -232,7 +242,7 @@ export async function getSavedInsights(userEmail?: string) {
     }
   }
   const combined = Array.from(map.values());
-  combined.sort((a, b) => b.timestamp - a.timestamp);
+  combined.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   return combined;
 }
 
@@ -310,7 +320,6 @@ export async function renameInsight(id: string, newName: string) {
     console.warn("IndexedDB renameInsight failed, trying LocalStorage fallback:", err);
   }
 
-  // LocalStorage fallback rename
   try {
     const storageKey = activeEmail ? `spednav_insights_${activeEmail}` : "spednav_insights_fallback";
     const existingStr = localStorage.getItem(storageKey) || "[]";
@@ -340,6 +349,7 @@ export async function updateInsightProfile(id: string, childId?: string) {
       const record = await store.get(id);
       if (record) {
         record.childId = normalizedChildId;
+        if (activeEmail) record.userEmail = activeEmail;
         if (normalizedChildId) {
           const child = await db.get('child_profiles', normalizedChildId);
           const childName = child ? child.name : "Child";
@@ -366,6 +376,7 @@ export async function updateInsightProfile(id: string, childId?: string) {
     const index = existing.findIndex((item: any) => item.id === id);
     if (index !== -1) {
       existing[index].childId = normalizedChildId;
+      if (activeEmail) existing[index].userEmail = activeEmail;
       const timeStr = new Date(existing[index].timestamp || Date.now()).toLocaleString();
       existing[index].name = normalizedChildId ? `Child - ${timeStr}` : `General - ${timeStr}`;
       localStorage.setItem(storageKey, JSON.stringify(existing));
@@ -388,17 +399,24 @@ export async function updateInsightProfile(id: string, childId?: string) {
   return updatedRecord;
 }
 
-// Child Profiles Management API with User Isolation
+// Child Profiles Management API with Strict User Isolation
 export async function getChildProfiles(userEmail?: string): Promise<ChildProfile[]> {
   const activeEmail = (userEmail || getActiveUserEmail() || "").toLowerCase().trim();
   const db = await getDB();
   if (!db) return [];
   const all: any[] = await db.getAll('child_profiles');
   if (activeEmail) {
-    return all.filter(p => {
+    const profiles = all.filter(p => {
       const pEmail = (p.userEmail || "").toLowerCase().trim();
-      return pEmail === activeEmail || !pEmail;
+      if (pEmail === activeEmail) return true;
+      if (!pEmail && activeEmail === "joeker10@gmail.com") {
+        p.userEmail = "joeker10@gmail.com";
+        db.put('child_profiles', p);
+        return true;
+      }
+      return false;
     });
+    return profiles;
   }
   return all.filter(p => !p.userEmail);
 }
@@ -412,6 +430,26 @@ export async function saveChildProfile(profile: ChildProfile, userEmail?: string
     userEmail: activeEmail || (profile as any).userEmail || undefined
   };
   await db.put('child_profiles', profileWithUser);
+
+  // User-scoped LocalStorage backup
+  try {
+    const storageKey = activeEmail ? `spednav_profiles_${activeEmail}` : "spednav_profiles_fallback";
+    const existingStr = localStorage.getItem(storageKey) || "[]";
+    const existing: any[] = JSON.parse(existingStr);
+    const filtered = existing.filter((p: any) => p.id !== profile.id);
+    filtered.push(profileWithUser);
+    localStorage.setItem(storageKey, JSON.stringify(filtered));
+  } catch (e) {
+    console.error("Failed to backup child profile to LocalStorage:", e);
+  }
+
+  // Trigger sync in background
+  try {
+    const { syncItem } = await import('./sync');
+    await syncItem('profile', profileWithUser);
+  } catch (sErr) {
+    console.warn("Failed to sync child profile to server:", sErr);
+  }
 }
 
 export async function deleteChildProfile(id: string) {
@@ -431,6 +469,13 @@ export async function deleteChildProfile(id: string) {
     }
   }
   await tx.done;
+
+  try {
+    const { deleteRemoteItem } = await import('./sync');
+    await deleteRemoteItem('profile', id);
+  } catch (sErr) {
+    console.warn("Failed to delete remote child profile:", sErr);
+  }
 }
 
 // ==========================================
@@ -462,12 +507,8 @@ export async function getDocumentEmbeddings(documentId?: string) {
   return await db.getAll('document_embeddings');
 }
 
-/**
- * Calculates the cosine similarity between two high-dimensional vectors.
- * Returns a value between -1 and 1, where 1 indicates identical direction.
- */
 export function cosineSimilarity(vecA: number[], vecB: number[]): number {
-  if (vecA.length !== vecB.length || vecA.length === 0) return 0;
+  if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
   let dotProduct = 0;
   let normA = 0;
   let normB = 0;
@@ -480,60 +521,98 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-export async function saveStagedFileOffline(file: File) {
+// ==========================================
+// Offline Staging and Document Cache Helpers
+// ==========================================
+
+export async function stageFileOffline(file: File): Promise<string> {
   const db = await getDB();
-  if (!db) return;
-  await db.put('staged_files', {
-    name: file.name,
-    file,
-    timestamp: Date.now()
+  const id = safeUUID();
+  
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64Content = reader.result as string;
+        if (db) {
+          await db.put('offline_staged_files', {
+            id,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            content: base64Content,
+            timestamp: Date.now(),
+          });
+        }
+        resolve(id);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = (e) => reject(e);
+    reader.readAsDataURL(file);
   });
 }
 
-export async function getStagedFilesOffline() {
+export const saveStagedFileOffline = stageFileOffline;
+
+export async function getStagedFilesOffline(): Promise<File[]> {
   const db = await getDB();
   if (!db) return [];
-  const records = await db.getAll('staged_files');
-  records.sort((a: any, b: any) => a.timestamp - b.timestamp);
-  return records.map((r: any) => r.file);
+  const records = await db.getAll('offline_staged_files');
+  
+  return records.map(r => {
+    const arr = r.content.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : r.type;
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], r.name, { type: mime });
+  });
 }
 
 export async function clearStagedFilesOffline() {
   const db = await getDB();
   if (!db) return;
-  const tx = db.transaction('staged_files', 'readwrite');
-  await tx.objectStore('staged_files').clear();
-  await tx.done;
+  await db.clear('offline_staged_files');
 }
 
-export async function deleteStagedFileOffline(name: string) {
+export async function getExtractedDocsOffline(): Promise<any[]> {
   const db = await getDB();
-  if (!db) return;
-  await db.delete('staged_files', name);
+  if (!db) return [];
+  const docs = await db.getAll('documents');
+  return docs.map(d => {
+    try {
+      return JSON.parse(d.extractedData);
+    } catch {
+      return null;
+    }
+  }).filter(Boolean);
 }
 
-export async function saveExtractedDocOffline(doc: any) {
+export async function saveExtractedDocOffline(docOrObj: any) {
   const db = await getDB();
   if (!db) return;
-  await db.put('extracted_docs', {
-    fileName: doc.fileName,
-    extractedData: JSON.stringify(doc),
-    timestamp: Date.now()
+  const id = docOrObj.id || docOrObj.fileName || safeUUID();
+  await db.put('documents', {
+    id,
+    fileName: docOrObj.fileName || '',
+    extractedData: typeof docOrObj === 'string' ? docOrObj : JSON.stringify(docOrObj),
+    timestamp: Date.now(),
   });
 }
 
-export async function getExtractedDocsOffline() {
-  const db = await getDB();
-  if (!db) return [];
-  const records = await db.getAll('extracted_docs');
-  records.sort((a: any, b: any) => a.timestamp - b.timestamp);
-  return records.map((r: any) => JSON.parse(r.extractedData));
-}
-
-export async function clearExtractedDocsOffline() {
+export async function deleteStagedFileOffline(fileName: string) {
   const db = await getDB();
   if (!db) return;
-  const tx = db.transaction('extracted_docs', 'readwrite');
-  await tx.objectStore('extracted_docs').clear();
-  await tx.done;
+  const all = await db.getAll('offline_staged_files');
+  for (const record of all) {
+    if (record.name === fileName) {
+      await db.delete('offline_staged_files', record.id);
+    }
+  }
 }
