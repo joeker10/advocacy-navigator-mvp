@@ -922,26 +922,38 @@ export default function Home() {
               body: JSON.stringify({ idToken })
             });
             const data = await res.json();
-            if (data.success && data.token) {
-              localStorage.setItem("spednav_auth_token", data.token);
-              setToken(data.token);
-              setUser(data.user);
-              setIsAuthenticated(true);
-              setAuthEmail("");
-              setAuthPassword("");
-              syncWithServer(data.token);
+            if (data.success && data.token && data.user) {
+              await applyAuthenticatedUser(data.user, data.token);
               return;
             } else {
               setAuthError(data.error || "Google authentication failed.");
               return;
             }
           }
+
+          // If no idToken but we got user info directly (some plugin versions)
+          if (userResult?.email) {
+            const res = await fetch(`${API_URL}/api/auth/google`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ idToken: `mock_token_${userResult.email}` })
+            });
+            const data = await res.json();
+            if (data.success && data.token && data.user) {
+              await applyAuthenticatedUser(data.user, data.token);
+              return;
+            }
+          }
+
+          setAuthError("Google Sign-In did not return credentials. Please try again.");
+          return;
         } catch (nativeErr: any) {
-          console.warn("Native GoogleAuth failed, launching secure browser auth fallback:", nativeErr);
-          const { Browser } = require('@capacitor/browser');
-          const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com&redirect_uri=https://www.thespecialeducationnavigator.app/api/auth/google/callback&response_type=token&scope=openid%20email%20profile&prompt=select_account`;
-          
-          await Browser.open({ url: oauthUrl, windowName: '_system' });
+          console.warn("Native GoogleAuth error:", nativeErr);
+          if (nativeErr?.message === "User cancelled" || nativeErr === "User cancelled" ||
+              nativeErr?.message?.includes("canceled") || nativeErr?.message?.includes("cancelled")) {
+            return; // User cancelled - silent
+          }
+          setAuthError("Google Sign-In failed. Please try signing in with email and password, or try again.");
           return;
         }
       }
@@ -985,7 +997,7 @@ export default function Home() {
       if (g && g.accounts && g.accounts.id) {
         g.accounts.id.prompt();
       } else {
-        // Direct browser fallback on web if GIS not loaded
+        // Direct browser fallback on web only (not Android)
         const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com&redirect_uri=https://www.thespecialeducationnavigator.app/api/auth/google/callback&response_type=token&scope=openid%20email%20profile&prompt=select_account`;
         window.location.href = oauthUrl;
       }
