@@ -2730,15 +2730,15 @@ export default function Home() {
                 }
 
                 return (
-                  <form onSubmit={handleAddChildProfile} style={{ display: "flex", gap: "0.5rem" }}>
+                  <form onSubmit={handleAddChildProfile} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                     <input 
                       type="text" 
                       placeholder="Child's Name" 
                       value={newChildName} 
                       onChange={e => setNewChildName(e.target.value)} 
-                      style={{ flex: 1, padding: "0.6rem 1rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }} 
+                      style={{ width: "100%", padding: "0.6rem 1rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", boxSizing: "border-box" }} 
                     />
-                    <button type="submit" style={{ padding: "0.6rem 1.2rem", borderRadius: "8px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: "pointer" }}>Add</button>
+                    <button type="submit" style={{ width: "100%", padding: "0.6rem 1.2rem", borderRadius: "8px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: "pointer" }}>Add</button>
                   </form>
                 );
               })()}
