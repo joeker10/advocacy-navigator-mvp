@@ -42,6 +42,19 @@ export async function GET(req: NextRequest) {
         }
         h2 { margin: 0 0 0.5rem 0; font-size: 1.3rem; }
         p { margin: 0; font-size: 0.9rem; opacity: 0.7; line-height: 1.4; }
+        .back-btn {
+          display: inline-block;
+          margin-top: 1.25rem;
+          padding: 0.75rem 1.5rem;
+          background: #6366f1;
+          color: white;
+          border: none;
+          border-radius: 12px;
+          font-size: 1rem;
+          font-weight: 700;
+          text-decoration: none;
+          cursor: pointer;
+        }
       </style>
     </head>
     <body>
@@ -49,12 +62,17 @@ export async function GET(req: NextRequest) {
         <div class="spinner">⏳</div>
         <h2 id="status-title">Signing You In</h2>
         <p id="status-desc">Connecting your Google Account with SpEd Navigator...</p>
+        <div id="back-container" style="display:none;">
+          <a id="back-btn" class="back-btn" href="/">Open SpEd Navigator</a>
+        </div>
       </div>
 
       <script>
         async function completeAuth() {
           const title = document.getElementById('status-title');
           const desc = document.getElementById('status-desc');
+          const backContainer = document.getElementById('back-container');
+          const backBtn = document.getElementById('back-btn');
 
           try {
             // Check hash parameters for Implicit Token Flow
@@ -96,7 +114,7 @@ export async function GET(req: NextRequest) {
 
             if (!userEmail) {
               title.innerText = "Notice";
-              desc.innerText = "No credentials received. Redirecting to home...";
+              desc.innerText = "No credentials received. Redirecting...";
               setTimeout(() => { window.location.href = '/'; }, 1500);
               return;
             }
@@ -115,22 +133,47 @@ export async function GET(req: NextRequest) {
             if (authData.success && authData.token) {
               localStorage.setItem('spednav_auth_token', authData.token);
 
+              // Detect if opened from Android app (Capacitor) and redirect back
+              const isAndroidApp = /Android/i.test(navigator.userAgent);
+              const appSchemeUrl = 'app.thespecialeducationnavigator://auth?token=' + encodeURIComponent(authData.token) + '&email=' + encodeURIComponent(userEmail);
+
               if (window.opener) {
+                // Popup flow (desktop web)
                 window.opener.postMessage({ type: 'GOOGLE_AUTH_TOKEN', token: authData.token }, '*');
                 setTimeout(() => window.close(), 800);
+              } else if (isAndroidApp) {
+                // Android: try to open the app via custom URL scheme
+                title.innerText = "✅ Signed In!";
+                desc.innerText = "Returning to SpEd Navigator...";
+
+                // Try intent URL to bring the app back to foreground
+                const intentUrl = 'intent://auth?token=' + encodeURIComponent(authData.token) + '&email=' + encodeURIComponent(userEmail) + '#Intent;scheme=app.thespecialeducationnavigator;package=app.thespecialeducationnavigator;end';
+                window.location.href = intentUrl;
+
+                // Fallback: show a button to go back
+                setTimeout(() => {
+                  backContainer.style.display = 'block';
+                  backBtn.href = appSchemeUrl;
+                  desc.innerText = "If the app didn't open automatically, tap the button below.";
+                }, 1500);
               } else {
+                // Regular web: redirect to home
                 setTimeout(() => { window.location.href = '/'; }, 800);
               }
             } else {
               title.innerText = "Authentication Error";
               desc.innerText = authData.error || "Failed to establish session.";
-              setTimeout(() => { window.location.href = '/'; }, 2000);
+              backContainer.style.display = 'block';
+              backBtn.href = '/';
+              setTimeout(() => { window.location.href = '/'; }, 3000);
             }
           } catch (err) {
             console.error("Auth completion failed:", err);
             title.innerText = "Sign-In Error";
             desc.innerText = err.message || "An unexpected error occurred.";
-            setTimeout(() => { window.location.href = '/'; }, 2000);
+            backContainer.style.display = 'block';
+            backBtn.href = '/';
+            setTimeout(() => { window.location.href = '/'; }, 3000);
           }
         }
 

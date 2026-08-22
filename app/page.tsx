@@ -948,13 +948,57 @@ export default function Home() {
           setAuthError("Google Sign-In did not return credentials. Please try again.");
           return;
         } catch (nativeErr: any) {
-          console.warn("Native GoogleAuth error:", nativeErr);
+          console.warn("Native GoogleAuth error, falling back to in-app browser:", nativeErr);
           if (nativeErr?.message === "User cancelled" || nativeErr === "User cancelled" ||
               nativeErr?.message?.includes("canceled") || nativeErr?.message?.includes("cancelled")) {
             return; // User cancelled - silent
           }
-          setAuthError("Google Sign-In failed. Please try signing in with email and password, or try again.");
-          return;
+
+          // Fallback: Open OAuth in Chrome Custom Tab (stays visually in-app)
+          // The callback page will redirect back via intent:// deep link
+          try {
+            const { Browser } = require('@capacitor/browser');
+            const { App } = require('@capacitor/app');
+
+            // Listen for the deep link redirect back from the callback page
+            const urlListener = await App.addListener('appUrlOpen', async (event: any) => {
+              const url = event.url || "";
+              if (url.includes('app.thespecialeducationnavigator://auth')) {
+                urlListener.remove();
+                try { await Browser.close(); } catch (e) {}
+
+                // Extract token and email from the deep link URL
+                const params = new URLSearchParams(url.split('?')[1] || "");
+                const authToken = params.get('token');
+                const email = params.get('email');
+
+                if (authToken) {
+                  // Fetch full session to get user object
+                  const sessionRes = await fetch(`${API_URL}/api/auth/session`, {
+                    method: "GET",
+                    headers: { "Authorization": `Bearer ${authToken}` }
+                  });
+                  const sessionData = await sessionRes.json();
+                  if (sessionData.success && sessionData.user) {
+                    await applyAuthenticatedUser(sessionData.user, authToken);
+                  } else {
+                    localStorage.setItem("spednav_auth_token", authToken);
+                    setToken(authToken);
+                    setIsAuthenticated(true);
+                    syncWithServer(authToken, email || undefined);
+                  }
+                }
+              }
+            });
+
+            const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com&redirect_uri=https://www.thespecialeducationnavigator.app/api/auth/google/callback&response_type=token&scope=openid%20email%20profile&prompt=select_account`;
+            await Browser.open({ url: oauthUrl });
+            return;
+          } catch (browserErr) {
+            console.error("Browser fallback also failed:", browserErr);
+            setAuthError("Google Sign-In failed. Please try signing in with email and password.");
+            return;
+          }
         }
       }
 
