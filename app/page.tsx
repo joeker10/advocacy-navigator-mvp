@@ -3,6 +3,11 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { getUIPreference, setUIPreference } from "@/lib/storage";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { TimelineTracker } from "@/components/TimelineTracker";
+import { ExportModal } from "@/components/ExportModal";
+import { GoogleDocModal } from "@/components/modals/GoogleDocModal";
+import { SettingsModal } from "@/components/modals/SettingsModal";
+import { sanitizeHtml } from "@/lib/sanitize";
 import { cacheVerifiedDocument, getOfflineDocuments, saveInsight, getSavedInsights, deleteInsight, updateInsightProfile, saveDocumentEmbedding, getDocumentEmbeddings, cosineSimilarity, getChildProfiles, saveChatMessage, getChatHistory, clearChatHistory } from "@/lib/indexeddb";
 
 const safeUUID = () => {
@@ -334,6 +339,8 @@ export default function Home() {
   const [googleDocUrl, setGoogleDocUrl] = useState("");
   const [isImportingGoogleDoc, setIsImportingGoogleDoc] = useState(false);
   const [isGoogleDocModalOpen, setIsGoogleDocModalOpen] = useState(false);
+  const [showTimelineModal, setShowTimelineModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [childProfiles, setChildProfiles] = useState<any[]>([]);
   const [selectedChildId, setSelectedChildId] = useState<string>("general");
   const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNativePlatform?.();
@@ -2189,19 +2196,49 @@ export default function Home() {
               </a>
             </div>
           </div>
-          <div style={{ display: "flex", gap: "12px" }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <button 
+              type="button"
+              onClick={() => setShowTimelineModal(true)} 
+              className="nav-btn-mobile-icon" 
+              style={{
+                padding: "8px 14px", borderRadius: "20px", display: "flex", gap: "6px", alignItems: "center",
+                background: "rgba(255, 255, 255, 0.05)", border: "1px solid var(--glass-border)", color: "var(--foreground)",
+                cursor: "pointer", fontWeight: 600, fontSize: "0.85rem",
+                boxShadow: "var(--shadow-sm)"
+              }}
+              title="IEP Milestone & Statutory Timeline Tracker"
+            >
+              ⏱️ <span className="button-text">Timeline</span>
+            </button>
+
+            <button 
+              type="button"
+              onClick={() => setShowExportModal(true)} 
+              className="nav-btn-mobile-icon" 
+              style={{
+                padding: "8px 14px", borderRadius: "20px", display: "flex", gap: "6px", alignItems: "center",
+                background: "rgba(255, 255, 255, 0.05)", border: "1px solid var(--glass-border)", color: "var(--foreground)",
+                cursor: "pointer", fontWeight: 600, fontSize: "0.85rem",
+                boxShadow: "var(--shadow-sm)"
+              }}
+              title="1-Tap Advocacy Summary Brief Export"
+            >
+              📄 <span className="button-text">Export</span>
+            </button>
+
             <button 
               type="button"
               onClick={openVault} 
               className="nav-btn-mobile-icon" 
               style={{
-                padding: "8px 16px", borderRadius: "20px", display: "flex", gap: "8px", alignItems: "center",
+                padding: "8px 14px", borderRadius: "20px", display: "flex", gap: "6px", alignItems: "center",
                 background: "var(--primary-glow)", border: "1px solid var(--primary)", color: "var(--primary)",
-                cursor: "pointer", fontWeight: 600, fontSize: "0.875rem",
+                cursor: "pointer", fontWeight: 600, fontSize: "0.85rem",
                 boxShadow: "var(--shadow-sm)"
               }}
             >
-              ⭐ <span className="button-text">Saved Insights</span>
+              ⭐ <span className="button-text">Insights</span>
             </button>
             
             <button 
@@ -2502,324 +2539,70 @@ export default function Home() {
         </div>
       )}
 
-      {/* Settings Drawer / Modal */}
-      {showSettings && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", zIndex: 100, display: "flex", justifyContent: "flex-end" }} onClick={() => { setShowSettings(false); setCouponSuccess(""); setCouponError(""); setFamilySuccess(""); setFamilyError(""); }}>
-          <div className="glass-panel animate-slide-up" style={{ width: "100%", maxWidth: "450px", height: "100%", borderRadius: "0", background: "var(--background-end)", borderLeft: "1px solid var(--glass-border)", padding: "2.5rem", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
-              <h2 style={{ fontSize: "1.75rem", fontWeight: 800 }}>Account & Settings</h2>
-              <button onClick={() => { setShowSettings(false); setCouponSuccess(""); setCouponError(""); setFamilySuccess(""); setFamilyError(""); }} style={{ background: "transparent", border: "none", fontSize: "1.5rem", color: "var(--foreground)", cursor: "pointer" }}>&times;</button>
-            </div>
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => {
+          setShowSettings(false);
+          setCouponSuccess("");
+          setCouponError("");
+          setFamilySuccess("");
+          setFamilyError("");
+        }}
+        user={user}
+        token={token}
+        setUser={setUser}
+        appPromptCount={appPromptCount}
+        couponCode={couponCode}
+        setCouponCode={setCouponCode}
+        couponSuccess={couponSuccess}
+        couponError={couponError}
+        handleRedeemCoupon={handleRedeemCoupon}
+        familyEmail={familyEmail}
+        setFamilyEmail={setFamilyEmail}
+        familySuccess={familySuccess}
+        familyError={familyError}
+        handleAddFamilyMember={handleAddFamilyMember}
+        handleRemoveFamilyMember={handleRemoveFamilyMember}
+        isSubscribedToNewsletter={isSubscribedToNewsletter}
+        handleToggleNewsletterSubscription={handleToggleNewsletterSubscription}
+        childProfiles={childProfiles}
+        handleDeleteChildProfile={handleDeleteChildProfile}
+        newChildName={newChildName}
+        setNewChildName={setNewChildName}
+        handleAddChildProfile={handleAddChildProfile}
+        handleLinkClick={handleLinkClick}
+        handleLogout={handleLogout}
+        formatEmailForMobile={formatEmailForMobile}
+      />
 
-            <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
-              <p style={{ fontSize: "0.85rem", opacity: 0.5, fontWeight: 700, textTransform: "uppercase" }}>Logged In As</p>
-              <p style={{ fontSize: "1.1rem", fontWeight: 600, marginTop: "0.25rem" }}>{formatEmailForMobile(user?.email)}</p>
-              
-              <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "10px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <span style={{ fontSize: "0.85rem", padding: "4px 12px", borderRadius: "20px", fontWeight: 700, background: user?.subscriptionStatus === "SUBSCRIBED" ? "var(--success-glow)" : "rgba(255,255,255,0.05)", border: user?.subscriptionStatus === "SUBSCRIBED" ? "1px solid var(--success)" : "1px solid var(--border)", color: user?.subscriptionStatus === "SUBSCRIBED" ? "var(--success)" : "var(--foreground)" }}>
-                    {user?.subscriptionStatus === "SUBSCRIBED" ? "👑 Subscribed (Unlimited)" : "Free Trial (Limited)"}
-                  </span>
-                  {user?.parentId && (
-                    <span style={{ fontSize: "0.8rem", opacity: 0.6 }}>Linked Family Account</span>
-                  )}
-                </div>
-                {user?.subscriptionStatus === "SUBSCRIBED" ? (
-                  user?.subscriptionExpiresAt && (
-                    <p style={{ fontSize: "0.85rem", margin: 0, opacity: 0.8 }}>
-                      Subscription ends: <strong>{new Date(user.subscriptionExpiresAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</strong>
-                    </p>
-                  )
-                ) : (
-                  <div style={{ fontSize: "0.85rem", opacity: 0.8, display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <p style={{ margin: 0 }}>
-                      Usage Limit: <strong>{appPromptCount} / 5</strong> Free Prompts / month
-                    </p>
-                    <p style={{ margin: 0, fontSize: "0.75rem", opacity: 0.7 }}>
-                      Redeem a coupon below or link a family account to unlock unlimited access.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Google Play & Mobile Subscription Section */}
-            {user?.subscriptionStatus !== "SUBSCRIBED" && (
-              <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
-                <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  ⭐ Unlock Unlimited Access
-                </h3>
-                <p style={{ fontSize: "0.85rem", opacity: 0.7, marginBottom: "1rem" }}>
-                  Get unlimited AI advocacy chats, IEP document extractions, meeting transcriptions, and family sharing.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.();
-                      if (isNative) {
-                        alert("Opening Google Play Subscription purchase window...");
-                        // Open Play Store subscription manager for this app
-                        window.open("https://play.google.com/store/account/subscriptions?sku=sped_nav_monthly_unlimited&package=app.thespecialeducationnavigator.advocacy", "_system");
-                      } else {
-                        alert("To complete your subscription, please open The Special Education Navigator app on Google Play to complete payment via Google Play Billing.");
-                      }
-                    } catch (err) {
-                      console.error("Subscription purchase error:", err);
-                      alert("Unable to launch Google Play Store billing.");
-                    }
-                  }}
-                  style={{
-                    width: "100%", padding: "0.85rem 1.25rem", borderRadius: "12px",
-                    background: "linear-gradient(135deg, var(--primary), var(--secondary))",
-                    color: "white", fontWeight: 700, fontSize: "1rem", border: "none",
-                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                    gap: "0.5rem", boxShadow: "0 4px 16px var(--primary-glow)", marginBottom: "1.25rem"
-                  }}
-                >
-                  💳 Subscribe via Google Play ($9.99/mo)
-                </button>
-              </div>
-            )}
-
-            {/* Coupon Redemption Section */}
-            {user?.subscriptionStatus !== "SUBSCRIBED" && (
-              <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
-                <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.75rem" }}>Redeem Promo Coupon</h3>
-                <p style={{ fontSize: "0.85rem", opacity: 0.7, marginBottom: "1rem" }}>Have a coupon code? Enter it below to unlock unlimited document analysis.</p>
-                
-                <form onSubmit={handleRedeemCoupon} style={{ display: "flex", gap: "0.5rem" }}>
-                  <input 
-                    type="text" 
-                    placeholder="Enter Coupon Code" 
-                    value={couponCode} 
-                    onChange={e => setCouponCode(e.target.value)} 
-                    style={{ flex: 1, padding: "0.6rem 1rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", textTransform: "uppercase" }} 
-                  />
-                  <button type="submit" style={{ padding: "0.6rem 1.2rem", borderRadius: "8px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: "pointer" }}>Apply</button>
-                </form>
-                {couponSuccess && <p style={{ color: "var(--success)", fontSize: "0.85rem", marginTop: "0.5rem", fontWeight: 600 }}>{couponSuccess}</p>}
-                {couponError && <p style={{ color: "hsl(0, 80%, 50%)", fontSize: "0.85rem", marginTop: "0.5rem", fontWeight: 600 }}>{couponError}</p>}
-              </div>
-            )}
-
-            {/* Family Discount Tier Section */}
-            {user?.subscriptionStatus === "SUBSCRIBED" && !user?.parentId && (
-              <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
-                <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>Family Discount Links</h3>
-                <p style={{ fontSize: "0.85rem", opacity: 0.7, marginBottom: "1rem" }}>Share your subscription benefits with up to 4 additional family email accounts.</p>
-                
-                <form onSubmit={handleAddFamilyMember} style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-                  <input 
-                    type="email" 
-                    placeholder="family@email.com" 
-                    value={familyEmail} 
-                    onChange={e => setFamilyEmail(e.target.value)} 
-                    style={{ flex: 1, padding: "0.6rem 1rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)" }} 
-                  />
-                  <button type="submit" style={{ padding: "0.6rem 1.2rem", borderRadius: "8px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: "pointer" }}>Link</button>
-                </form>
-                {familySuccess && <p style={{ color: "var(--success)", fontSize: "0.85rem", marginTop: "0.5rem", fontWeight: 600 }}>{familySuccess}</p>}
-                {familyError && <p style={{ color: "hsl(0, 80%, 50%)", fontSize: "0.85rem", marginTop: "0.5rem", fontWeight: 600 }}>{familyError}</p>}
-
-                {user?.linkedAccounts && user.linkedAccounts.length > 0 && (
-                  <div style={{ marginTop: "1rem" }}>
-                    <p style={{ fontSize: "0.75rem", fontWeight: 700, opacity: 0.5, textTransform: "uppercase", marginBottom: "0.5rem" }}>Linked Accounts</p>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                      {user.linkedAccounts.map((member: any) => (
-                        <div key={member.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--glass-border)", borderRadius: "8px" }}>
-                          <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>{formatEmailForMobile(member.email)}</span>
-                          <button onClick={() => handleRemoveFamilyMember(member.id)} style={{ background: "transparent", border: "none", color: "hsl(0, 80%, 50%)", fontSize: "0.8rem", cursor: "pointer" }}>Unlink</button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Security Settings Section (2FA Toggle) */}
-            <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>Security Settings</h3>
-              <p style={{ fontSize: "0.85rem", opacity: 0.7, marginBottom: "1rem" }}>Enhance your account safety by enabling 2-Factor Authentication (Email OTP).</p>
-              
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--glass-border)", borderRadius: "8px" }}>
-                <span style={{ fontSize: "0.95rem", fontWeight: 600 }}>Enable 2FA (Email OTP)</span>
-                <input 
-                  type="checkbox"
-                  checked={!!user?.twoFactorEnabled}
-                  onChange={async (e) => {
-                    const enabled = e.target.checked;
-                    try {
-                      const res = await fetch(`${API_URL}/api/auth/toggle-2fa`, {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                          "Authorization": `Bearer ${token}`
-                        },
-                        body: JSON.stringify({ enabled })
-                      });
-                      const data = await res.json();
-                      if (data.success) {
-                        setUser((prev: any) => ({ ...prev, twoFactorEnabled: data.twoFactorEnabled }));
-                      } else {
-                        alert(data.error || "Failed to update 2FA settings.");
-                      }
-                    } catch (err) {
-                      alert("Network error updating 2FA settings.");
-                    }
-                  }}
-                  style={{ width: "20px", height: "20px", cursor: "pointer", accentColor: "var(--primary)" }}
-                />
-              </div>
-            </div>
-
-            {/* Communication Settings Section */}
-            <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>Newsletter Settings</h3>
-              <p style={{ fontSize: "0.85rem", opacity: 0.7, marginBottom: "1rem" }}>Stay informed with special education compliance tips from <strong>joe@<wbr />thespecialeducationnavigator.app</strong>.</p>
-              
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--glass-border)", borderRadius: "8px" }}>
-                <span style={{ fontSize: "0.95rem", fontWeight: 600 }}>Subscribe to free newsletter</span>
-                <input 
-                  type="checkbox"
-                  checked={isSubscribedToNewsletter}
-                  onChange={handleToggleNewsletterSubscription}
-                  style={{ width: "20px", height: "20px", cursor: "pointer", accentColor: "var(--primary)" }}
-                />
-              </div>
-            </div>
-
-            {/* Child Profiles Section */}
-            <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>👦 Child Profiles</h3>
-              <p style={{ fontSize: "0.85rem", opacity: 0.7, marginBottom: "1rem" }}>
-                Create profiles to filter insights and keep separate records.
-              </p>
-
-              {/* Profiles List */}
-              {childProfiles.length === 0 ? (
-                <p style={{ fontSize: "0.85rem", opacity: 0.5, fontStyle: "italic", marginBottom: "1rem" }}>No child profiles created yet.</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "1rem" }}>
-                  {childProfiles.map((child) => (
-                    <div 
-                      key={child.id} 
-                      style={{ 
-                        display: "flex", 
-                        justifyContent: "space-between", 
-                        alignItems: "center", 
-                        padding: "8px 12px", 
-                        background: "rgba(255,255,255,0.03)", 
-                        border: "1px solid var(--glass-border)", 
-                        borderRadius: "8px" 
-                      }}
-                    >
-                      <span style={{ fontSize: "0.95rem", fontWeight: 600 }}>👦 {child.name}</span>
-                      <button 
-                        onClick={() => handleDeleteChildProfile(child.id, child.name)} 
-                        style={{ 
-                          background: "transparent", 
-                          border: "none", 
-                          color: "hsl(0, 80%, 50%)", 
-                          fontSize: "0.8rem", 
-                          cursor: "pointer",
-                          fontWeight: 600
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Add Profile Form */}
-              {(() => {
-                const isOwnerOrPro = user?.email?.toLowerCase() === 'joeker10@gmail.com' || user?.subscriptionTier === 'PROFESSIONAL' || user?.subscriptionTier === 'UNLIMITED';
-                const effectiveLimit = isOwnerOrPro ? 9999 : (user?.subscriptionStatus === 'SUBSCRIBED' ? Math.max(user?.profileLimit ?? 4, 4) : (user?.profileLimit ?? 1));
-                const isLimitReached = childProfiles.length >= effectiveLimit;
-
-                if (isLimitReached) {
-                  return (
-                    <div style={{ fontSize: "0.8rem", opacity: 0.7, padding: "8px 12px", background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", borderRadius: "8px", color: "#fbbf24" }}>
-                      ⚠️ Profile limit reached ({childProfiles.length} of {effectiveLimit}). Upgrade or redeem a coupon to add more profiles.
-                    </div>
-                  );
-                }
-
-                return (
-                  <form onSubmit={handleAddChildProfile} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    <input 
-                      type="text" 
-                      placeholder="Child's Name" 
-                      value={newChildName} 
-                      onChange={e => setNewChildName(e.target.value)} 
-                      style={{ width: "100%", padding: "0.6rem 1rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", boxSizing: "border-box" }} 
-                    />
-                    <button type="submit" style={{ width: "100%", padding: "0.6rem 1.2rem", borderRadius: "8px", background: "var(--primary)", color: "white", fontWeight: 600, border: "none", cursor: "pointer" }}>Add</button>
-                  </form>
-                );
-              })()}
-            </div>
-
-            {/* Help & Support Section */}
-            <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid var(--glass-border)" }}>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>Help & Support</h3>
-              <p style={{ fontSize: "0.85rem", opacity: 0.7, marginBottom: "1rem" }}>
-                Encountered an issue or have feedback? Let us know to help improve the Navigator.
-              </p>
-              
-              <a 
-                href="/tutorials"
-                target="_blank" 
-                rel="noopener noreferrer"
-                onClick={(e) => handleLinkClick(e, "/tutorials")}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-                  width: "100%", padding: "0.75rem", borderRadius: "12px",
-                  background: "var(--surface)", border: "1px solid var(--border)",
-                  color: "var(--foreground)", fontWeight: 700, textDecoration: "none",
-                  fontSize: "0.95rem", textAlign: "center", cursor: "pointer", transition: "all 0.2s",
-                  marginBottom: "1rem"
-                }}
-              >
-                📖 View Tutorials & FAQs
-              </a>
-
-              <div style={{ fontSize: "0.85rem", padding: "0.75rem 1rem", borderRadius: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", marginBottom: "1rem", display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ opacity: 0.6, fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Email Support</span>
-                <a href="mailto:support@thespecialeducationnavigator.app" style={{ color: "var(--primary)", fontWeight: 600, textDecoration: "none", wordBreak: "break-all" }}>
-                  support@thespecialeducationnavigator.app
-                </a>
-              </div>
-
-              <a 
-                href="https://docs.google.com/forms/d/e/1FAIpQLSdDSAJHvlrEJ5JYra7vokzqDoNJT4SKQaRcvak7YDN3F3kIkQ/viewform"
-                target="_blank" 
-                rel="noreferrer"
-                onClick={(e) => handleLinkClick(e, "https://docs.google.com/forms/d/e/1FAIpQLSdDSAJHvlrEJ5JYra7vokzqDoNJT4SKQaRcvak7YDN3F3kIkQ/viewform")}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-                  width: "100%", padding: "0.75rem", borderRadius: "12px",
-                  background: "var(--primary-glow)", border: "1px solid var(--primary)",
-                  color: "var(--primary)", fontWeight: 700, textDecoration: "none",
-                  fontSize: "0.95rem", textAlign: "center", cursor: "pointer", transition: "all 0.2s"
-                }}
-              >
-                🐛 Report a Bug / Feedback
-              </a>
-            </div>
-
-            <button 
-              onClick={handleLogout}
-              style={{ width: "100%", padding: "0.8rem", borderRadius: "12px", background: "hsla(0, 80%, 50%, 0.1)", border: "1px solid hsla(0, 80%, 50%, 0.3)", color: "hsl(0, 80%, 60%)", fontWeight: 700, cursor: "pointer", marginTop: "2rem" }}
-            >
-              Log Out
-            </button>
+      {/* Timeline Tracker Modal */}
+      {showTimelineModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
+            backdropFilter: 'blur(8px)', zIndex: 150, display: 'flex',
+            alignItems: 'center', justifyContent: 'center', padding: '1rem'
+          }}
+          onClick={() => setShowTimelineModal(false)}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ maxWidth: '650px', width: '100%' }}>
+            <TimelineTracker
+              childName={selectedChildId !== 'general' ? childProfiles.find(c => c.id === selectedChildId)?.name : 'Student'}
+              onClose={() => setShowTimelineModal(false)}
+            />
           </div>
         </div>
+      )}
+
+      {/* Advocacy Brief Export Modal */}
+      {showExportModal && (
+        <ExportModal
+          childProfile={selectedChildId !== 'general' ? childProfiles.find(c => c.id === selectedChildId) : null}
+          extractedDocuments={extractedDocuments}
+          savedInsights={vaultInsights}
+          onClose={() => setShowExportModal(false)}
+        />
       )}
 
       <div className="container main-content-container" style={{ marginTop: "4rem" }}>
@@ -3511,7 +3294,7 @@ export default function Home() {
               messages.map((msg, i) => (
                 <div key={i} className="chat-bubble" style={{ alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', background: msg.role === 'user' ? 'var(--primary-glow)' : 'var(--surface)', border: `1px solid ${msg.role === 'user' ? 'var(--primary)' : 'var(--border)'}`, padding: "1rem", borderRadius: "8px", width: msg.role === 'user' ? "auto" : "100%", maxWidth: msg.role === 'user' ? "90%" : "100%", boxShadow: "var(--shadow-sm)" }}>
                   <p style={{ fontWeight: 600, fontSize: "0.8rem", color: msg.role === 'user' ? 'var(--primary)' : 'var(--secondary)', marginBottom: "0.25rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>{msg.role === 'user' ? 'You' : 'Advocate'}</p>
-                  <p style={{ fontSize: "0.95rem", whiteSpace: "pre-wrap" }}>{renderTextWithEmailBreaks(msg.text)}</p>
+                  <p style={{ fontSize: "0.95rem", whiteSpace: "pre-wrap" }}>{renderTextWithEmailBreaks(sanitizeHtml(msg.text))}</p>
                   
                   {msg.role === 'model' && (
                     <div style={{ marginTop: "1rem", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
@@ -3743,147 +3526,15 @@ export default function Home() {
       )}
 
       {/* Google Doc Import Modal Overlay */}
-      {isGoogleDocModalOpen && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)",
-          zIndex: 200, display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center", padding: "2rem"
-        }} onClick={() => setIsGoogleDocModalOpen(false)}>
-          <div className="glass-panel animate-slide-up" style={{
-            width: "100%", maxWidth: "560px", padding: "2.25rem",
-            display: "flex", flexDirection: "column", gap: "1.5rem",
-            background: "var(--surface)", border: "1px solid var(--glass-border)",
-            position: "relative", overflow: "hidden"
-          }} onClick={e => e.stopPropagation()}>
-            
-            {/* Polynesian Kapa Accent Bar */}
-            <div className="kapa-accent-bar" style={{ position: "absolute", top: 0, left: 0, right: 0, height: "6px" }} />
-
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ fontSize: "1.3rem", fontWeight: 800, display: "flex", alignItems: "center", gap: "0.75rem", color: "var(--foreground)" }}>
-                {/* Hawaiian Honu Turtle Petroglyph SVG Icon */}
-                <svg width="28" height="28" viewBox="0 0 100 100" fill="var(--primary)">
-                  <circle cx="50" cy="55" r="22" />
-                  <circle cx="50" cy="22" r="8" />
-                  <path d="M50 22 L50 33 M25 45 Q10 30 5 50 M75 45 Q90 30 95 50 M30 72 Q10 85 8 72 M70 72 Q90 85 92 72" stroke="var(--primary)" strokeWidth="6" fill="none" strokeLinecap="round" />
-                </svg>
-                Import Google Doc / Drive
-              </h3>
-              <button 
-                onClick={() => setIsGoogleDocModalOpen(false)} 
-                style={{ background: "transparent", border: "none", fontSize: "1.5rem", color: "var(--foreground)", cursor: "pointer" }}
-              >
-                &times;
-              </button>
-            </div>
-
-            {/* 3 Simple Steps Banner */}
-            <div style={{ padding: "1rem 1.25rem", borderRadius: "14px", background: "var(--primary-glow)", border: "1px solid var(--primary)", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontSize: "1.2rem" }}>📌</span>
-                <strong style={{ fontSize: "0.95rem", color: "var(--foreground)" }}>How to Import Any Google Doc in Seconds:</strong>
-              </div>
-              <div style={{ fontSize: "0.85rem", opacity: 0.9, display: "flex", flexDirection: "column", gap: "0.35rem", lineHeight: 1.4 }}>
-                <div><strong>1.</strong> In the Google Docs or Drive app, open your document.</div>
-                <div><strong>2.</strong> Tap <strong>Share</strong> (or <strong>... &rarr; Share & export &rarr; Copy link</strong>).</div>
-                <div><strong>3.</strong> Return here and tap <strong>📋 Paste Link & Import</strong> below!</div>
-              </div>
-            </div>
-
-            {/* 1-Tap Quick Action Buttons */}
-            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-              <button
-                type="button"
-                onClick={handlePasteAndImport}
-                disabled={isImportingGoogleDoc}
-                style={{
-                  flex: "1 1 200px", padding: "1rem", borderRadius: "14px",
-                  background: "var(--primary)", color: "white",
-                  border: "none", fontWeight: 700, fontSize: "1rem",
-                  cursor: isImportingGoogleDoc ? "not-allowed" : "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
-                  boxShadow: "0 4px 14px var(--primary-glow)"
-                }}
-              >
-                {isImportingGoogleDoc ? "⏳ Importing Doc..." : "📋 Paste Link & Import Now"}
-              </button>
-
-              <a
-                href="https://docs.google.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  flex: "1 1 140px", padding: "1rem", borderRadius: "14px",
-                  background: "var(--surface)", color: "var(--foreground)",
-                  border: "1px solid var(--border)", fontWeight: 650, fontSize: "0.95rem",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
-                  textDecoration: "none"
-                }}
-              >
-                🌐 Open Google Docs
-              </a>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: "1rem", opacity: 0.5 }}>
-              <hr style={{ flex: 1, border: "none", borderTop: "1px solid var(--border)" }} />
-              <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>OR PASTE / EDIT LINK</span>
-              <hr style={{ flex: 1, border: "none", borderTop: "1px solid var(--border)" }} />
-            </div>
-
-            {/* Option 2: Manual Link Input */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <label style={{ fontSize: "0.85rem", fontWeight: 700, opacity: 0.85 }}>Google Doc Web Share Link:</label>
-              <input
-                type="text"
-                placeholder="https://docs.google.com/document/d/..."
-                value={googleDocUrl}
-                onChange={e => setGoogleDocUrl(e.target.value)}
-                style={{
-                  padding: "0.85rem 1rem",
-                  borderRadius: "12px",
-                  border: "1px solid var(--border)",
-                  background: "var(--background)",
-                  color: "var(--foreground)",
-                  fontSize: "0.95rem",
-                  outline: "none"
-                }}
-              />
-            </div>
-
-            <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-              <button
-                onClick={async () => {
-                  await handleGoogleDocImport();
-                  setIsGoogleDocModalOpen(false);
-                }}
-                disabled={isImportingGoogleDoc || !googleDocUrl.trim()}
-                style={{
-                  flex: 2, padding: "0.9rem", borderRadius: "12px",
-                  background: "var(--secondary)", border: "none",
-                  color: "white", fontWeight: 700, fontSize: "1rem",
-                  cursor: (isImportingGoogleDoc || !googleDocUrl.trim()) ? "not-allowed" : "pointer",
-                  opacity: (isImportingGoogleDoc || !googleDocUrl.trim()) ? 0.7 : 1,
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem"
-                }}
-              >
-                {isImportingGoogleDoc ? "Importing..." : "📥 Import Staged Link"}
-              </button>
-              <button
-                onClick={() => setIsGoogleDocModalOpen(false)}
-                style={{
-                  flex: 1, padding: "0.9rem", borderRadius: "12px",
-                  background: "var(--surface)", border: "1px solid var(--border)",
-                  color: "var(--foreground)", fontWeight: 650, fontSize: "1rem",
-                  cursor: "pointer"
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <GoogleDocModal
+        isOpen={isGoogleDocModalOpen}
+        onClose={() => setIsGoogleDocModalOpen(false)}
+        googleDocUrl={googleDocUrl}
+        setGoogleDocUrl={setGoogleDocUrl}
+        isImportingGoogleDoc={isImportingGoogleDoc}
+        handlePasteAndImport={handlePasteAndImport}
+        handleGoogleDocImport={handleGoogleDocImport}
+      />
       </main>
     </ErrorBoundary>
   );
