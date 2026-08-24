@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/lib/auth";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Hardcoded promo codes always count as 100% free access
 const HARDCODED_COUPONS = ["NAVIGATE2026", "WELCOME2026", "HAR60", "FAMILY50"];
@@ -10,6 +11,15 @@ export async function POST(req: NextRequest) {
     const payload = getAuthenticatedUser(req);
     if (!payload) {
       return NextResponse.json({ error: "Unauthorized user" }, { status: 401 });
+    }
+
+    const ip = getClientIp(req);
+    const rateLimit = checkRateLimit(`redeem:${payload.userId}:${ip}`, { maxRequests: 5, windowMs: 15 * 60 * 1000 });
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: "Too many coupon attempts. Please try again in 15 minutes." },
+        { status: 429 }
+      );
     }
 
     const { code } = await req.json();

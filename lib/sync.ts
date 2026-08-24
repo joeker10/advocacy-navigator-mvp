@@ -45,11 +45,16 @@ export async function deleteRemoteItem(type: 'profile' | 'insight', id: string) 
   }
 }
 
+let isSyncing = false;
+
 export async function fullSync(userEmail?: string) {
   if (typeof window === 'undefined') return;
+  if (isSyncing) return; // Prevent concurrent overlapping syncs
+  
   const token = localStorage.getItem("spednav_auth_token");
   if (!token) return;
 
+  isSyncing = true;
   const activeEmail = (userEmail || getActiveUserEmail() || "").toLowerCase().trim();
   if (activeEmail) {
     setActiveUserEmail(activeEmail);
@@ -144,5 +149,7 @@ export async function fullSync(userEmail?: string) {
     }
   } catch (err) {
     console.error("Full account sync failed:", err);
+  } finally {
+    isSyncing = false;
   }
 }

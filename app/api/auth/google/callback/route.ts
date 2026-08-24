@@ -126,7 +126,7 @@ export async function GET(req: NextRequest) {
             const authRes = await fetch('/api/auth/google', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ idToken: 'mock_token_' + userEmail })
+              body: JSON.stringify({ accessToken, idToken })
             });
 
             const authData = await authRes.json();

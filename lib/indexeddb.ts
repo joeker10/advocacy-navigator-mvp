@@ -1,10 +1,22 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 
-const safeUUID = () => {
-  if (typeof window !== "undefined" && window.crypto && window.crypto.randomUUID) {
-    return window.crypto.randomUUID();
+const safeUUID = (): string => {
+  if (typeof window !== "undefined" && window.crypto) {
+    if (typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    if (typeof window.crypto.getRandomValues === "function") {
+      const bytes = new Uint8Array(16);
+      window.crypto.getRandomValues(bytes);
+      bytes[6] = (bytes[6] & 0x0f) | 0x40; // Version 4
+      bytes[8] = (bytes[8] & 0x3f) | 0x80; // Variant 10
+      const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    }
   }
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  const timestamp = Date.now().toString(16);
+  const randomPart = Array.from({ length: 4 }, () => Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0')).join('');
+  return `gen-${timestamp}-${randomPart.slice(0, 20)}`;
 };
 
 export interface ChildProfile {

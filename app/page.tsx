@@ -931,12 +931,13 @@ export default function Home() {
             }
           }
 
-          // If no idToken but we got user info directly (some plugin versions)
-          if (userResult?.email) {
+          // If authentication object has access token or id token
+          const accessToken = userResult?.authentication?.accessToken || userResult?.accessToken;
+          if (accessToken) {
             const res = await fetch(`${API_URL}/api/auth/google`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ idToken: `mock_token_${userResult.email}` })
+              body: JSON.stringify({ accessToken })
             });
             const data = await res.json();
             if (data.success && data.token && data.user) {
@@ -1011,25 +1012,19 @@ export default function Home() {
           callback: async (tokenResponse: any) => {
             if (tokenResponse && tokenResponse.access_token) {
               try {
-                const userRes = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${tokenResponse.access_token}`);
-                const userInfo = await userRes.json();
-                if (userInfo && userInfo.email) {
-                  const res = await fetch(`${API_URL}/api/auth/google`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ idToken: `mock_token_${userInfo.email}` })
-                  });
-                  const data = await res.json();
-                  if (data.success && data.token && data.user) {
-                    await applyAuthenticatedUser(data.user, data.token);
-                  } else {
-                    setAuthError(data.error || "Google authentication failed.");
-                  }
+                const res = await fetch(`${API_URL}/api/auth/google`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ accessToken: tokenResponse.access_token })
+                });
+                const data = await res.json();
+                if (data.success && data.token && data.user) {
+                  await applyAuthenticatedUser(data.user, data.token);
                 } else {
-                  setAuthError("Failed to retrieve Google user profile.");
+                  setAuthError(data.error || "Google authentication failed.");
                 }
               } catch (e: any) {
-                setAuthError("Google user profile verification failed.");
+                setAuthError("Google user verification failed.");
               }
             }
           }

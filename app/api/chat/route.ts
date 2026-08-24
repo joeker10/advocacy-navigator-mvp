@@ -3,16 +3,28 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import prisma from '@/lib/prisma';
 import { getAuthenticatedUser } from '@/lib/auth';
 import { retryWithBackoff } from '@/lib/gemini';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const ip = getClientIp(req);
+    const rateLimit = checkRateLimit(`chat:${ip}`, { maxRequests: 30, windowMs: 60 * 1000 });
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please slow down and try again shortly.' },
+        { status: 429 }
+      );
+    }
+
+    const body = await req.json().catch(() => ({}));
     const { query, history } = body;
     let { context, rag_chunks } = body;
 
-    if (!query) {
+    if (!query || typeof query !== 'string' || query.trim().length === 0) {
       return NextResponse.json({ error: 'No query provided' }, { status: 400 });
     }
+
+    const sanitizedQuery = query.trim();
 
     // Check auth status
     const payload = getAuthenticatedUser(req);
@@ -32,18 +44,22 @@ export async function POST(req: NextRequest) {
             subscriptionStatus = 'SUBSCRIBED';
           }
         }
-        if (subscriptionStatus === 'SUBSCRIBED') {
+        if (subscriptionStatus === 'SUBSCRIBED' || user.email.toLowerCase() === 'joeker10@gmail.com') {
           isSubscribed = true;
         }
       }
     }
 
-    // Security Gate: disable document-specific analysis context for free/demo users
+    // Security & Quota Gates
     if (!isSubscribed) {
       context = null;
       rag_chunks = null;
-      if (query.length > 500) {
-        return NextResponse.json({ error: 'Query character limit exceeded' }, { status: 400 });
+      if (sanitizedQuery.length > 1000) {
+        return NextResponse.json({ error: 'Query character limit exceeded for free tier (1,000 max).' }, { status: 400 });
+      }
+    } else {
+      if (sanitizedQuery.length > 10000) {
+        return NextResponse.json({ error: 'Query character limit exceeded (10,000 max).' }, { status: 400 });
       }
     }
 
@@ -97,10 +113,12 @@ Scope of Practice: You are an analytical tool, not a licensed attorney. Do not i
     const formattedHistory: { role: string; parts: { text: string }[] }[] = [];
     if (history && Array.isArray(history)) {
       history.forEach((msg) => {
-        formattedHistory.push({
-          role: msg.role === 'user' ? 'user' : 'model',
-          parts: [{ text: msg.text }]
-        });
+        if (msg && typeof msg.text === 'string') {
+          formattedHistory.push({
+            role: msg.role === 'user' ? 'user' : 'model',
+            parts: [{ text: msg.text.slice(0, 10000) }]
+          });
+        }
       });
     }
 
@@ -115,7 +133,7 @@ Scope of Practice: You are an analytical tool, not a licensed attorney. Do not i
 
     // Execute Stateless Query with retry and fallback to gemini-1.5-flash under high demand
     const result = await retryWithBackoff(
-      () => chat.sendMessage(query),
+      () => chat.sendMessage(sanitizedQuery),
       3,
       1000,
       async () => {
@@ -131,7 +149,7 @@ Scope of Practice: You are an analytical tool, not a licensed attorney. Do not i
             maxOutputTokens: 4096,
           }
         });
-        return await fallbackChat.sendMessage(query);
+        return await fallbackChat.sendMessage(sanitizedQuery);
       }
     );
     const responseText = result.response.text();

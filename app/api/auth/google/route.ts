@@ -3,43 +3,74 @@ import { OAuth2Client } from 'google-auth-library';
 import prisma from '@/lib/prisma';
 import { signToken } from '@/lib/auth';
 
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const VALID_GOOGLE_CLIENT_IDS = [
+  '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
+  '76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com'
+];
+
+if (process.env.GOOGLE_CLIENT_ID && !VALID_GOOGLE_CLIENT_IDS.includes(process.env.GOOGLE_CLIENT_ID)) {
+  VALID_GOOGLE_CLIENT_IDS.push(process.env.GOOGLE_CLIENT_ID);
+}
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || VALID_GOOGLE_CLIENT_IDS[0]);
 
 export async function POST(req: NextRequest) {
   try {
-    const { idToken } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { idToken, accessToken } = body;
 
-    if (!idToken) {
-      return NextResponse.json({ error: 'Google ID token is required' }, { status: 400 });
+    if (!idToken && !accessToken) {
+      return NextResponse.json({ error: 'Google ID token or Access token is required' }, { status: 400 });
     }
 
-    let payload;
-    
-    // For local development and testing, we support a mock token in development mode
-    if (idToken.startsWith('mock_token_')) {
-      const email = idToken.replace('mock_token_', '');
-      payload = { email, email_verified: true };
-    } else {
-      const validAudiences = [
-        '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
-        '76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com'
-      ];
-      if (process.env.GOOGLE_CLIENT_ID && !validAudiences.includes(process.env.GOOGLE_CLIENT_ID)) {
-        validAudiences.push(process.env.GOOGLE_CLIENT_ID);
+    let verifiedEmail: string | null = null;
+
+    // 1. Verify Google ID Token if provided
+    if (idToken) {
+      try {
+        const ticket = await client.verifyIdToken({
+          idToken,
+          audience: VALID_GOOGLE_CLIENT_IDS,
+        });
+        const payload = ticket.getPayload();
+        if (payload && payload.email && payload.email_verified) {
+          verifiedEmail = payload.email.toLowerCase().trim();
+        }
+      } catch (err: any) {
+        console.warn('verifyIdToken failed, falling back to tokeninfo endpoint:', err?.message);
+        // Fallback to direct Google tokeninfo endpoint
+        const tokenRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+        if (tokenRes.ok) {
+          const info = await tokenRes.json();
+          const isAudValid = VALID_GOOGLE_CLIENT_IDS.includes(info.aud) || VALID_GOOGLE_CLIENT_IDS.includes(info.azp);
+          if (isAudValid && info.email && (info.email_verified === 'true' || info.email_verified === true)) {
+            verifiedEmail = info.email.toLowerCase().trim();
+          }
+        }
       }
-
-      const ticket = await client.verifyIdToken({
-        idToken,
-        audience: validAudiences,
-      });
-      payload = ticket.getPayload();
     }
 
-    if (!payload || !payload.email) {
-      return NextResponse.json({ error: 'Invalid Google token payload' }, { status: 400 });
+    // 2. Verify Google Access Token if ID token wasn't provided or didn't resolve
+    if (!verifiedEmail && accessToken) {
+      try {
+        const tokenRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`);
+        if (tokenRes.ok) {
+          const info = await tokenRes.json();
+          const isAudValid = !info.aud || VALID_GOOGLE_CLIENT_IDS.includes(info.aud) || VALID_GOOGLE_CLIENT_IDS.includes(info.azp);
+          if (isAudValid && info.email && (info.email_verified === 'true' || info.email_verified === true || info.verified_email === true)) {
+            verifiedEmail = info.email.toLowerCase().trim();
+          }
+        }
+      } catch (err: any) {
+        console.error('Google access token verification error:', err);
+      }
     }
 
-    const email = payload.email.toLowerCase().trim();
+    if (!verifiedEmail) {
+      return NextResponse.json({ error: 'Invalid or unverified Google credentials' }, { status: 401 });
+    }
+
+    const email = verifiedEmail;
 
     // Check if user exists
     let user = await prisma.user.findUnique({

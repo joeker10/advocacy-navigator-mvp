@@ -1,20 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { hashPassword } from '@/lib/auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY || 'MOCK_KEY');
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rateLimit = checkRateLimit(`register:${ip}`, { maxRequests: 5, windowMs: 60 * 1000 });
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: 'Too many registration attempts. Please wait a minute and try again.' },
+        { status: 429 }
+      );
+    }
+
     const { email, password } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
-    if (password.length < 6) {
-      return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
+    if (password.length < 8) {
+      return NextResponse.json({ error: 'Password must be at least 8 characters long' }, { status: 400 });
+    }
+
+    // Check for at least one number or special character
+    if (!/[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      return NextResponse.json({ error: 'Password must contain at least one number or special symbol' }, { status: 400 });
     }
 
     const normalizedEmail = email.toLowerCase().trim();

@@ -33,6 +33,8 @@ model AnnualGoal {
   document   Document @relation(fields: [documentId], references: [id])
   target     String
   benchmarks String?
+
+  @@index([documentId])
 }
 
 model Accommodation {
@@ -40,6 +42,8 @@ model Accommodation {
   documentId String
   document   Document @relation(fields: [documentId], references: [id])
   details    String
+
+  @@index([documentId])
 }
 
 model RelatedService {
@@ -49,6 +53,8 @@ model RelatedService {
   type       String   // e.g. "Speech Therapy", "OT"
   frequency  String
   duration   String
+
+  @@index([documentId])
 }
 
 model User {
@@ -68,6 +74,8 @@ model User {
   verificationExpires DateTime?
   childProfiles      ChildProfile[]
   savedInsights      SavedInsight[]
+
+  @@index([parentId])
 }
 
 model ChildProfile {
@@ -80,6 +88,8 @@ model ChildProfile {
   dob       String?
   createdAt DateTime       @default(now())
   insights  SavedInsight[]
+
+  @@index([userId])
 }
 
 model SavedInsight {
@@ -92,6 +102,9 @@ model SavedInsight {
   response  String
   name      String?
   timestamp DateTime      @default(now())
+
+  @@index([userId])
+  @@index([childId])
 }
 
 model Coupon {

@@ -1,7 +1,9 @@
 import crypto from 'crypto';
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.createHash('sha256').update('advocacy-framework-secret-2026').digest('hex');
-const JWT_SECRET = process.env.JWT_SECRET || crypto.createHash('sha256').update(ENCRYPTION_KEY + '-jwt-salt').digest('hex');
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'advocacy-framework-secure-enc-2026';
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' 
+  ? (() => { throw new Error("JWT_SECRET environment variable must be set in production"); })()
+  : 'dev-jwt-secret-advocacy-navigator-2026-local-only');
 
 function base64urlEncode(str: string | Buffer): string {
   const buf = Buffer.isBuffer(str) ? str : Buffer.from(str);
