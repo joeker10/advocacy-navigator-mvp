@@ -2,7 +2,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { getUIPreference, setUIPreference } from "@/lib/storage";
 import ThemeToggle from "@/app/components/ThemeToggle";
-import { cacheVerifiedDocument, getOfflineDocuments, saveInsight, getSavedInsights, deleteInsight, updateInsightProfile, saveDocumentEmbedding, getDocumentEmbeddings, cosineSimilarity, getChildProfiles } from "@/lib/indexeddb";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { cacheVerifiedDocument, getOfflineDocuments, saveInsight, getSavedInsights, deleteInsight, updateInsightProfile, saveDocumentEmbedding, getDocumentEmbeddings, cosineSimilarity, getChildProfiles, saveChatMessage, getChatHistory, clearChatHistory } from "@/lib/indexeddb";
 
 const safeUUID = () => {
   if (typeof window !== "undefined" && window.crypto && window.crypto.randomUUID) {
@@ -574,6 +575,18 @@ export default function Home() {
     }
     loadStagedAndExtracted();
 
+    async function loadChat() {
+      try {
+        const { getChatHistory, getActiveUserEmail } = await import("@/lib/indexeddb");
+        const activeEmail = getActiveUserEmail();
+        const history = await getChatHistory(activeEmail || undefined);
+        if (history.length > 0) setMessages(history as any);
+      } catch (err) {
+        console.error("Failed to load chat history from IndexedDB on mount:", err);
+      }
+    }
+    loadChat();
+
     return () => clearTimeout(loadingTimeout);
   }, []);
 
@@ -599,12 +612,14 @@ export default function Home() {
     setTwoFactorCode("");
 
     try {
-      const { getChildProfiles, getSavedInsights, setActiveUserEmail } = await import("@/lib/indexeddb");
+      const { getChildProfiles, getSavedInsights, getChatHistory, setActiveUserEmail } = await import("@/lib/indexeddb");
       setActiveUserEmail(userEmail);
       const profiles = await getChildProfiles(userEmail);
       setChildProfiles(profiles);
       const insights = await getSavedInsights(userEmail);
       setVaultInsights(insights);
+      const history = await getChatHistory(userEmail);
+      if (history.length > 0) setMessages(history as any);
     } catch (e) {
       console.error("Local user data isolation load failed:", e);
     }
@@ -1301,6 +1316,7 @@ export default function Home() {
       chatInputRef.current.style.height = "auto";
     }
     setMessages(prev => [...prev, {role: 'user', text: userMsg}]);
+    saveChatMessage('user', userMsg, user?.email).catch(console.error);
     setIsChatLoading(true);
 
     try {
@@ -1353,6 +1369,7 @@ export default function Home() {
       const data = await res.json();
       if (data.success) {
         setMessages(prev => [...prev, {role: 'model', text: data.response}]);
+        saveChatMessage('model', data.response, user?.email).catch(console.error);
         if (user && user.subscriptionStatus !== 'SUBSCRIBED') {
           incrementPromptCount();
         }
@@ -1365,6 +1382,13 @@ export default function Home() {
       setMessages(prev => [...prev, {role: 'model', text: "A network error occurred connecting to the Advocate."}]);
     } finally {
       setIsChatLoading(false);
+    }
+  };
+
+  const handleClearChat = async () => {
+    if (window.confirm("Are you sure you want to clear your chat conversation?")) {
+      setMessages([]);
+      await clearChatHistory(user?.email);
     }
   };
 
@@ -2110,7 +2134,8 @@ export default function Home() {
   }
 
   return (
-    <main className="main-wrapper" style={{ minHeight: "100vh", position: "relative", zIndex: 1, paddingBottom: "4rem" }}>
+    <ErrorBoundary>
+      <main className="main-wrapper" style={{ minHeight: "100vh", position: "relative", zIndex: 1, paddingBottom: "4rem" }}>
       {/* Top Navbar */}
       <nav style={{ 
         position: "sticky", top: 0, zIndex: 50,
@@ -3448,11 +3473,32 @@ export default function Home() {
                 </select>
               </div>
             </div>
-            {extractedDocuments.length > 0 ? (
-              <span style={{ fontSize: "0.85rem", padding: "4px 12px", background: "var(--success-glow)", border: "1px solid var(--success)", color: "var(--success)", borderRadius: "20px", fontWeight: 600 }}>Multi-Doc Context Mode</span>
-            ) : (
-              <span style={{ fontSize: "0.85rem", padding: "4px 12px", background: "var(--glass-bg)", border: "1px solid var(--border)", color: "var(--foreground)", borderRadius: "20px", fontWeight: 600 }}>General Knowledge Mode</span>
-            )}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              {extractedDocuments.length > 0 ? (
+                <span style={{ fontSize: "0.85rem", padding: "4px 12px", background: "var(--success-glow)", border: "1px solid var(--success)", color: "var(--success)", borderRadius: "20px", fontWeight: 600 }}>Multi-Doc Context Mode</span>
+              ) : (
+                <span style={{ fontSize: "0.85rem", padding: "4px 12px", background: "var(--glass-bg)", border: "1px solid var(--border)", color: "var(--foreground)", borderRadius: "20px", fontWeight: 600 }}>General Knowledge Mode</span>
+              )}
+              {messages.length > 0 && (
+                <button
+                  onClick={handleClearChat}
+                  title="Clear current conversation"
+                  style={{
+                    fontSize: "0.8rem",
+                    padding: "4px 10px",
+                    background: "rgba(239, 68, 68, 0.1)",
+                    border: "1px solid rgba(239, 68, 68, 0.3)",
+                    color: "#f87171",
+                    borderRadius: "20px",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    transition: "all 0.2s"
+                  }}
+                >
+                  🗑️ Clear
+                </button>
+              )}
+            </div>
           </div>
           
           <div className="radio-screen" style={{ flex: 1, display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
@@ -3838,6 +3884,7 @@ export default function Home() {
           </div>
         </div>
       )}
-    </main>
+      </main>
+    </ErrorBoundary>
   );
 }

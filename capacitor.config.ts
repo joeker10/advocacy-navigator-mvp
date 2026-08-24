@@ -4,6 +4,11 @@ const config: CapacitorConfig = {
   appId: 'app.thespecialeducationnavigator',
   appName: 'SpEd Navigator',
   webDir: 'out',
+  android: {
+    allowMixedContent: false,
+    backgroundColor: '#0f172a',
+    captureInput: true,
+  },
   plugins: {
     GoogleAuth: {
       scopes: ['profile', 'email'],

@@ -78,6 +78,16 @@ interface AdvocacyDB extends DBSchema {
       timestamp: number;
     };
   };
+  chat_history: {
+    key: string;
+    value: {
+      id: string;
+      role: string;
+      text: string;
+      timestamp: number;
+      userEmail?: string;
+    };
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<AdvocacyDB>> | null = null;
@@ -85,7 +95,7 @@ let dbPromise: Promise<IDBPDatabase<AdvocacyDB>> | null = null;
 export function getDB() {
   if (typeof window === 'undefined') return null;
   if (!dbPromise) {
-    dbPromise = openDB<AdvocacyDB>('advocacy_framework_db', 3, {
+    dbPromise = openDB<AdvocacyDB>('advocacy_framework_db', 4, {
       upgrade(db, oldVersion, newVersion, transaction) {
         if (!db.objectStoreNames.contains('documents')) {
           db.createObjectStore('documents', { keyPath: 'id' });
@@ -102,6 +112,9 @@ export function getDB() {
         }
         if (!db.objectStoreNames.contains('offline_staged_files')) {
           db.createObjectStore('offline_staged_files', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('chat_history')) {
+          db.createObjectStore('chat_history', { keyPath: 'id' });
         }
       },
     });
@@ -625,6 +638,48 @@ export async function deleteStagedFileOffline(fileName: string) {
   for (const record of all) {
     if (record.name === fileName) {
       await db.delete('offline_staged_files', record.id);
+    }
+  }
+}
+
+export async function saveChatMessage(role: string, text: string, userEmail?: string) {
+  const db = await getDB();
+  if (!db) return;
+  const activeEmail = (userEmail || getActiveUserEmail() || "").toLowerCase().trim();
+  const id = safeUUID();
+  await db.put('chat_history', {
+    id,
+    role,
+    text,
+    timestamp: Date.now(),
+    userEmail: activeEmail || undefined,
+  });
+}
+
+export async function getChatHistory(userEmail?: string): Promise<{ role: string; text: string }[]> {
+  const db = await getDB();
+  if (!db) return [];
+  const activeEmail = (userEmail || getActiveUserEmail() || "").toLowerCase().trim();
+  const all = await db.getAll('chat_history');
+  
+  const filtered = all.filter(msg => {
+    if (!activeEmail) return !msg.userEmail;
+    return msg.userEmail === activeEmail;
+  });
+
+  filtered.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  return filtered.map(msg => ({ role: msg.role, text: msg.text }));
+}
+
+export async function clearChatHistory(userEmail?: string) {
+  const db = await getDB();
+  if (!db) return;
+  const activeEmail = (userEmail || getActiveUserEmail() || "").toLowerCase().trim();
+  const all = await db.getAll('chat_history');
+  
+  for (const msg of all) {
+    if (!activeEmail || msg.userEmail === activeEmail) {
+      await db.delete('chat_history', msg.id);
     }
   }
 }
