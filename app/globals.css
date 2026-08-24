@@ -268,16 +268,20 @@ html[data-theme="dark"] .radio-screen {
   .mobile-menu-btn {
     display: block !important;
   }
+  .nav-title {
+    display: none !important;
+  }
   .button-text {
     display: none !important;
   }
   .nav-btn-mobile-icon {
     padding: 0 !important;
     border-radius: 50% !important;
-    min-height: 38px !important;
-    min-width: 38px !important;
-    width: 38px !important;
-    height: 38px !important;
+    min-height: 34px !important;
+    min-width: 34px !important;
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 0.95rem !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -295,15 +299,14 @@ html[data-theme="dark"] .radio-screen {
 
 @media (max-width: 480px) {
   .nav-logo-group {
-    gap: 8px !important;
+    gap: 4px !important;
   }
   .nav-title {
-    font-size: 0.77rem !important;
-    line-height: 1.2 !important;
+    display: none !important;
   }
   .nav-logo {
-    width: 48px !important;
-    height: 48px !important;
+    width: 38px !important;
+    height: 38px !important;
     object-fit: contain !important;
     padding: 2px !important;
     background: var(--surface) !important;

@@ -2172,19 +2172,16 @@ export default function Home() {
               {isMobileMenuOpen ? "✕" : "☰"}
             </button>
 
-            <a href="/home" onClick={(e) => handleLinkClick(e, "/home")} style={{ display: "flex", alignItems: "center", gap: "10px", textDecoration: "none", color: "var(--foreground)" }} aria-label="Special Education Navigator Home">
+            <a href="/home" onClick={(e) => handleLinkClick(e, "/home")} style={{ display: "flex", alignItems: "center", textDecoration: "none", color: "var(--foreground)" }} aria-label="Special Education Navigator Home">
               <img 
                 src="/navigator-logo.jpg" 
                 alt="Special Education Navigator Logo" 
                 className="nav-logo"
                 style={{ 
-                  width: "52px", height: "52px", borderRadius: "50%", 
+                  width: "48px", height: "48px", borderRadius: "50%", 
                   boxShadow: "0 4px 12px var(--primary-glow)", border: "1px solid var(--glass-border)", objectFit: "contain", padding: "2px", background: "var(--surface)"
                 }} 
               />
-              <span className="nav-title" style={{ fontSize: "0.77rem", fontWeight: 700, letterSpacing: "-0.01em", color: "var(--foreground)", lineHeight: "1.2", display: "inline-block", textAlign: "left", textDecoration: "none" }}>
-                Special Education <br/> Navigator
-              </span>
             </a>
             
             <div style={{ display: "flex", gap: "16px", marginLeft: "12px" }} role="navigation" aria-label="Public Pages Menu" className="desktop-nav">
