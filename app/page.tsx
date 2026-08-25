@@ -2184,7 +2184,7 @@ export default function Home() {
               />
             </a>
             
-            <div style={{ display: "flex", gap: "16px", marginLeft: "12px" }} role="navigation" aria-label="Public Pages Menu" className="desktop-nav">
+            <div style={{ display: "flex", gap: "16px", marginLeft: "12px", alignItems: "center" }} role="navigation" aria-label="Public Pages Menu" className="desktop-nav">
               <a href="/home" onClick={(e) => handleLinkClick(e, "/home")} style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
                 Home
               </a>
@@ -2197,6 +2197,15 @@ export default function Home() {
               <a href="/videos" onClick={(e) => handleLinkClick(e, "/videos")} style={{ color: "var(--foreground)", opacity: 0.8, textDecoration: "none", fontSize: "0.9rem", fontWeight: 500, transition: "opacity 0.2s" }} onMouseOver={(e) => e.currentTarget.style.opacity = "1"} onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}>
                 Videos
               </a>
+              <button 
+                type="button" 
+                onClick={() => setShowSettings(true)} 
+                style={{ background: "transparent", border: "none", color: "var(--foreground)", opacity: 0.8, fontSize: "0.9rem", fontWeight: 500, cursor: "pointer", transition: "opacity 0.2s", padding: 0 }}
+                onMouseOver={(e) => e.currentTarget.style.opacity = "1"} 
+                onMouseOut={(e) => e.currentTarget.style.opacity = "0.8"}
+              >
+                ⚙️ Settings
+              </button>
             </div>
           </div>
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
@@ -2273,20 +2282,6 @@ export default function Home() {
             >
               ⭐ <span className="button-text">Insights</span>
             </button>
-            
-            <button 
-              type="button"
-              onClick={() => setShowSettings(true)}
-              className="nav-btn-mobile-icon"
-              style={{
-                padding: "8px 14px", borderRadius: "20px", display: "flex", gap: "6px", alignItems: "center",
-                background: "var(--surface)", border: "1px solid var(--glass-border)", color: "var(--foreground)",
-                cursor: "pointer", fontWeight: 600, fontSize: "0.85rem", transition: "all var(--transition-normal)",
-                boxShadow: "var(--shadow-sm)"
-              }}
-            >
-              ⚙️ <span className="button-text">Settings</span>
-            </button>
 
             <ThemeToggle />
           </div>
@@ -2311,6 +2306,13 @@ export default function Home() {
           zIndex: 49,
           boxShadow: "var(--shadow-md)"
         }} className="animate-slide-up">
+          <button
+            type="button"
+            onClick={() => { setIsMobileMenuOpen(false); setShowSettings(true); }}
+            style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", width: "100%", textAlign: "left", cursor: "pointer" }}
+          >
+            ⚙️ Account & Settings
+          </button>
           <button
             type="button"
             onClick={() => { setIsMobileMenuOpen(false); setShowChecklistModal(true); }}
