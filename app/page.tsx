@@ -12,6 +12,7 @@ import { SettingsModal } from "@/components/modals/SettingsModal";
 import { VaultModal } from "@/components/modals/VaultModal";
 import { CameraModal } from "@/components/modals/CameraModal";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { openExternalUrl } from "@/lib/navigation";
 import { cacheVerifiedDocument, getOfflineDocuments, saveInsight, getSavedInsights, deleteInsight, updateInsightProfile, saveDocumentEmbedding, getDocumentEmbeddings, cosineSimilarity, getChildProfiles, saveChatMessage, getChatHistory, clearChatHistory } from "@/lib/indexeddb";
 
 const safeUUID = () => {
@@ -306,11 +307,11 @@ export default function Home() {
   const [darkMode, setDarkMode] = useState(false);
 
   const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-    setIsMobileMenuOpen(false);
-    if (href.startsWith("http://") || href.startsWith("https://")) {
+    if (e && e.preventDefault) {
       e.preventDefault();
-      window.open(href, "_system");
     }
+    setIsMobileMenuOpen(false);
+    openExternalUrl(href);
   };
 
   // Chat Interface State

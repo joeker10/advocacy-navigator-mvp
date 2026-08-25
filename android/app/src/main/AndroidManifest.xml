@@ -52,4 +52,13 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Required for Google Play In-App Subscriptions -->
     <uses-permission android:name="com.android.vending.BILLING" />
+
+    <!-- Queries for launching Chrome / System Browser Custom Tabs -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
 </manifest>

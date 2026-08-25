@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import ThemeToggle from "./ThemeToggle";
+import { openExternalUrl } from "@/lib/navigation";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -10,9 +11,11 @@ export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-    if (isAdmin) {
+    const isNative = typeof window !== "undefined" && (window as any).Capacitor?.isNativePlatform?.();
+    if (isAdmin || isNative) {
       e.preventDefault();
-      window.open(href, "_blank", "noopener,noreferrer");
+      setIsMobileMenuOpen(false);
+      openExternalUrl(href);
     }
   };
 
@@ -141,19 +144,19 @@ export default function Navbar() {
           zIndex: 99,
           boxShadow: "var(--shadow-md)"
         }} className="animate-slide-up">
-          <Link href="/home" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <Link href="/home" onClick={(e) => handleLinkClick(e, "/home")} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             🏠 Home
           </Link>
-          <Link href="/posts" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <Link href="/posts" onClick={(e) => handleLinkClick(e, "/posts")} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             📰 Articles
           </Link>
-          <Link href="/downloads" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <Link href="/downloads" onClick={(e) => handleLinkClick(e, "/downloads")} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             📥 Downloads
           </Link>
-          <Link href="/tutorials" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <Link href="/tutorials" onClick={(e) => handleLinkClick(e, "/tutorials")} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             📖 App Help
           </Link>
-          <Link href="/videos" onClick={() => setIsMobileMenuOpen(false)} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <Link href="/videos" onClick={(e) => handleLinkClick(e, "/videos")} style={{ fontSize: "1rem", fontWeight: 600, padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)", color: "var(--foreground)", display: "flex", alignItems: "center", gap: "8px" }}>
             🎥 Videos
           </Link>
           <div style={{ display: "flex", justifyContent: "center", padding: "1rem 0 0.5rem" }}>
