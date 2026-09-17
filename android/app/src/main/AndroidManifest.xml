@@ -50,8 +50,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Required for Meeting Audio Transcription -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <!-- Required for Google Play In-App Subscriptions -->
-    <uses-permission android:name="com.android.vending.BILLING" />
+
 
     <!-- Queries for launching Chrome / System Browser Custom Tabs -->
     <queries>
