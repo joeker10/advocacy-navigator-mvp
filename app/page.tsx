@@ -463,6 +463,7 @@ export default function Home() {
     setIsSubscribedToNewsletter(localStorage.getItem("spednav_newsletter_subscribed") === "true");
 
     const handleAuthMessage = async (event: MessageEvent) => {
+      if (typeof window !== 'undefined' && event.origin !== window.location.origin) return;
       if (event.data?.type === 'GOOGLE_AUTH_TOKEN' && event.data?.token) {
         const authToken = event.data.token;
         try {

@@ -59,23 +59,34 @@ export async function POST(req: NextRequest) {
     if (Array.isArray(childProfiles)) {
       for (const p of childProfiles) {
         if (!p.id || !p.name) continue;
-        await prisma.childProfile.upsert({
-          where: { id: p.id },
-          update: {
-            name: p.name,
-            school: p.school || null,
-            grade: p.grade || null,
-            dob: p.dob || null,
-          },
-          create: {
-            id: p.id,
-            userId: payload.userId,
-            name: p.name,
-            school: p.school || null,
-            grade: p.grade || null,
-            dob: p.dob || null,
-          },
-        });
+
+        const existing = await prisma.childProfile.findUnique({ where: { id: p.id } });
+        if (existing) {
+          if (existing.userId !== payload.userId) {
+            // Prevent modifying profiles owned by other users
+            continue;
+          }
+          await prisma.childProfile.update({
+            where: { id: p.id },
+            data: {
+              name: p.name,
+              school: p.school || null,
+              grade: p.grade || null,
+              dob: p.dob || null,
+            },
+          });
+        } else {
+          await prisma.childProfile.create({
+            data: {
+              id: p.id,
+              userId: payload.userId,
+              name: p.name,
+              school: p.school || null,
+              grade: p.grade || null,
+              dob: p.dob || null,
+            },
+          });
+        }
       }
     }
 
@@ -86,28 +97,38 @@ export async function POST(req: NextRequest) {
         let childIdVal: string | null = null;
         if (i.childId && i.childId !== 'general') {
           const existingChild = await prisma.childProfile.findUnique({ where: { id: i.childId } });
-          if (existingChild) {
+          if (existingChild && existingChild.userId === payload.userId) {
             childIdVal = i.childId;
           }
         }
 
-        await prisma.savedInsight.upsert({
-          where: { id: i.id },
-          update: {
-            childId: childIdVal,
-            query: i.query,
-            response: i.response,
-            name: i.name || null,
-          },
-          create: {
-            id: i.id,
-            userId: payload.userId,
-            childId: childIdVal,
-            query: i.query,
-            response: i.response,
-            name: i.name || null,
-          },
-        });
+        const existingInsight = await prisma.savedInsight.findUnique({ where: { id: i.id } });
+        if (existingInsight) {
+          if (existingInsight.userId !== payload.userId) {
+            // Prevent modifying insights owned by other users
+            continue;
+          }
+          await prisma.savedInsight.update({
+            where: { id: i.id },
+            data: {
+              childId: childIdVal,
+              query: i.query,
+              response: i.response,
+              name: i.name || null,
+            },
+          });
+        } else {
+          await prisma.savedInsight.create({
+            data: {
+              id: i.id,
+              userId: payload.userId,
+              childId: childIdVal,
+              query: i.query,
+              response: i.response,
+              name: i.name || null,
+            },
+          });
+        }
       }
     }
 
@@ -135,13 +156,23 @@ export async function DELETE(req: NextRequest) {
     }
 
     if (type === "profile") {
-      await prisma.childProfile.delete({
+      const existing = await prisma.childProfile.findFirst({
         where: { id, userId: payload.userId }
       });
+      if (existing) {
+        await prisma.childProfile.delete({
+          where: { id }
+        });
+      }
     } else {
-      await prisma.savedInsight.delete({
+      const existing = await prisma.savedInsight.findFirst({
         where: { id, userId: payload.userId }
       });
+      if (existing) {
+        await prisma.savedInsight.delete({
+          where: { id }
+        });
+      }
     }
 
     return NextResponse.json({ success: true });

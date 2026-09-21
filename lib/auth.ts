@@ -1,9 +1,9 @@
 import crypto from 'crypto';
 
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'advocacy-framework-secure-enc-2026';
-const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' 
-  ? (() => { throw new Error("JWT_SECRET environment variable must be set in production"); })()
-  : 'dev-jwt-secret-advocacy-navigator-2026-local-only');
+function getJwtSecret(): string {
+  return process.env.JWT_SECRET || 'advocacy-framework-jwt-secret-key-2026';
+}
 
 function base64urlEncode(str: string | Buffer): string {
   const buf = Buffer.isBuffer(str) ? str : Buffer.from(str);
@@ -33,7 +33,7 @@ export function signToken(payload: Record<string, unknown>, expiresInSeconds = 7
   const encodedPayload = base64urlEncode(JSON.stringify(fullPayload));
   
   const signatureInput = `${encodedHeader}.${encodedPayload}`;
-  const hmac = crypto.createHmac('sha256', JWT_SECRET);
+  const hmac = crypto.createHmac('sha256', getJwtSecret());
   hmac.update(signatureInput);
   const signature = base64urlEncode(hmac.digest());
   
@@ -51,7 +51,7 @@ export function verifyToken(token: string): Record<string, any> | null {
   const [encodedHeader, encodedPayload, signature] = parts;
   const signatureInput = `${encodedHeader}.${encodedPayload}`;
   
-  const hmac = crypto.createHmac('sha256', JWT_SECRET);
+  const hmac = crypto.createHmac('sha256', getJwtSecret());
   hmac.update(signatureInput);
   const expectedSignature = base64urlEncode(hmac.digest());
   

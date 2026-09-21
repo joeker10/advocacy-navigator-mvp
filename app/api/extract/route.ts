@@ -41,6 +41,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No media files uploaded' }, { status: 400 });
     }
 
+    const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
+    for (const file of files) {
+      if (file.size > MAX_FILE_SIZE) {
+        return NextResponse.json(
+          { error: `File "${file.name}" exceeds the maximum allowed size of 25MB.` },
+          { status: 400 }
+        );
+      }
+    }
+
     const parts: any[] = [];
     const primaryMimeType = files[0].type;
     const combinedFileName = files.length > 1 ? `Batch_${files.length}_Documents` : files[0].name;
@@ -105,7 +115,7 @@ export async function POST(req: NextRequest) {
     };
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash",
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: extractSchema,

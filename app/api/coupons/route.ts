@@ -1,16 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import crypto from "crypto";
 
-const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || "graditide";
+const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || "";
 const isPasscodeValid = (code: string | null) => {
-  if (!code) return false;
-  return code === ADMIN_PASSCODE || code === 'gratitude' || code === 'graditide';
+  if (!code || !ADMIN_PASSCODE) return false;
+  const a = Buffer.from(code);
+  const b = Buffer.from(ADMIN_PASSCODE);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 };
 const VALID_PLANS = ["ALL", "MONTHLY", "THREE_MONTH", "ANNUAL"];
 
 // Get all coupons (Admin access)
 export async function GET(req: NextRequest) {
   try {
+    const passcodeHeader = req.headers.get("x-admin-passcode");
+    if (!isPasscodeValid(passcodeHeader)) {
+      return NextResponse.json({ error: "Unauthorized: Invalid admin passcode" }, { status: 401 });
+    }
+
     const coupons = await prisma.coupon.findMany({
       orderBy: { createdAt: "desc" },
     });

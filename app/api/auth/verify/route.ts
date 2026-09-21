@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { signToken } from '@/lib/auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rateLimit = checkRateLimit(`verify-email:${ip}`, { maxRequests: 5, windowMs: 5 * 60 * 1000 });
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: 'Too many verification attempts. Please wait 5 minutes and try again.' },
+        { status: 429 }
+      );
+    }
+
     const { email, code } = await req.json();
 
     if (!email || !code) {

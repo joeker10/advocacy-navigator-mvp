@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || 'graditide';
+import crypto from 'crypto';
+
+const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || '';
 const isPasscodeValid = (code: string | null) => {
-  if (!code) return false;
-  return code === ADMIN_PASSCODE || code === 'gratitude' || code === 'graditide';
+  if (!code || !ADMIN_PASSCODE) return false;
+  const a = Buffer.from(code);
+  const b = Buffer.from(ADMIN_PASSCODE);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 };
 
 const DEFAULT_RESOURCES = [
@@ -134,21 +139,9 @@ SECTION 4: PROCEDURAL SAFEGUARDS AND PRIOR WRITTEN NOTICE
 
 export async function GET(req: NextRequest) {
   try {
-    // Sync default resources to ensure any updates in the codebase are written to the database
-    for (const defRes of DEFAULT_RESOURCES) {
-      const existing = await prisma.resource.findFirst({
-        where: { fileName: defRes.fileName }
-      });
-      if (existing) {
-        await prisma.resource.update({
-          where: { id: existing.id },
-          data: {
-            title: defRes.title,
-            description: defRes.description,
-            fileContent: defRes.fileContent
-          }
-        });
-      } else {
+    const count = await prisma.resource.count();
+    if (count === 0) {
+      for (const defRes of DEFAULT_RESOURCES) {
         await prisma.resource.create({
           data: defRes
         });

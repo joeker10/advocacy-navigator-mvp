@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
-const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || "graditide";
+import crypto from "crypto";
+
+const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || "";
 const isPasscodeValid = (code: string | null) => {
-  if (!code) return false;
-  return code === ADMIN_PASSCODE || code === 'gratitude' || code === 'graditide';
+  if (!code || !ADMIN_PASSCODE) return false;
+  const a = Buffer.from(code);
+  const b = Buffer.from(ADMIN_PASSCODE);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 };
 
 const DEFAULT_VIDEOS = [

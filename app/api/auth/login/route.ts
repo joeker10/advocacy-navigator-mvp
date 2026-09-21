@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import prisma from '@/lib/prisma';
 import { verifyPassword, signToken } from '@/lib/auth';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
 
     // Block login and request verification if email is not verified
     if (!user.emailVerified) {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const code = crypto.randomInt(100000, 1000000).toString();
       const codeExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
       await prisma.user.update({
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
 
     // If 2-Factor Authentication is enabled, intercept login and issue tempToken
     if (user.twoFactorEnabled) {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const code = crypto.randomInt(100000, 1000000).toString();
       const codeExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
       await prisma.user.update({
@@ -107,11 +108,28 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      console.log(`\n=================================================`);
-      console.log(`[2FA OTP] Code generated for user: ${user.email}`);
-      console.log(`[2FA OTP] Code: ${code}`);
-      console.log(`[2FA OTP] Expires at: ${codeExpires.toISOString()}`);
-      console.log(`=================================================\n`);
+      // Send 2FA code via email if Resend is configured
+      if (process.env.RESEND_API_KEY) {
+        try {
+          const { Resend } = require('resend');
+          const resend = new Resend(process.env.RESEND_API_KEY);
+          await resend.emails.send({
+            from: 'The Special Education Navigator <no-reply@thespecialeducationnavigator.app>',
+            to: user.email,
+            subject: 'Your 2-Factor Authentication Code',
+            text: `Your 2-Factor Authentication code is: ${code}\n\nThis code will expire in 5 minutes.`,
+            html: `<p>Your 2-Factor Authentication code for <strong>The Special Education Navigator</strong> is:</p><h2 style="font-size: 2rem; color: #0284c7; letter-spacing: 0.1em; font-family: monospace;">${code}</h2><p>This code will expire in 5 minutes.</p>`
+          });
+        } catch (emailError: any) {
+          console.error('Failed to send 2FA email during login:', emailError);
+        }
+      } else {
+        console.log(`\n=================================================`);
+        console.log(`[2FA OTP] Code generated for user: ${user.email}`);
+        console.log(`[2FA OTP] Code: ${code}`);
+        console.log(`[2FA OTP] Expires at: ${codeExpires.toISOString()}`);
+        console.log(`=================================================\n`);
+      }
 
       const tempToken = signToken({
         userId: user.id,

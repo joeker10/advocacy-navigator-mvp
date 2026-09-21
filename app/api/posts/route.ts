@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || 'graditide';
+import crypto from 'crypto';
+
+const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || '';
 const isPasscodeValid = (code: string | null) => {
-  if (!code) return false;
-  return code === ADMIN_PASSCODE || code === 'gratitude' || code === 'graditide';
+  if (!code || !ADMIN_PASSCODE) return false;
+  const a = Buffer.from(code);
+  const b = Buffer.from(ADMIN_PASSCODE);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 };
 
 const DEFAULT_ARTICLES = [
@@ -103,56 +108,9 @@ Once you notify the school of your intent to record, the school team will almost
 
 export async function GET(req: NextRequest) {
   try {
-    // Sync/update any legacy test post in the database to be the new PWN article
-    const testPost = await prisma.post.findFirst({
-      where: { title: "Test Post Title" }
-    });
-    if (testPost) {
-      await prisma.post.update({
-        where: { id: testPost.id },
-        data: {
-          title: "Prior Written Notice (PWN): The Parent's Legal Shield",
-          category: "Procedural Rights",
-          date: "June 2026",
-          excerpt: "Prior Written Notice (PWN) is one of the most powerful procedural safeguards in special education. Learn why it is critical and view concrete examples of proposals and refusals under HAR Chapter 60.",
-          content: `Under the Individuals with Disabilities Education Act (IDEA) and Hawaii Administrative Rules (HAR) §8-60-58, Prior Written Notice (PWN) is a fundamental procedural safeguard designed to ensure parents are fully informed partners in their child's educational planning. The school must provide a PWN to parents a reasonable time before proposing or refusing to initiate or change the identification, evaluation, or educational placement of a student, or the provision of a Free Appropriate Public Education (FAPE). 
-
-Many parents mistakenly believe that decisions are finalized only when an IEP is signed. In reality, the PWN is the official legal record of the school's decisions. It acts as an advocate's shield, capturing the "why" behind every proposal or refusal. A legally compliant PWN must contain: a description of the action proposed or refused; an explanation of why the action was taken; a description of each evaluation, assessment, or record used as a basis; a statement of procedural safeguards; and descriptions of other options considered and why they were rejected.
-
-**Why is PWN so critical?**
-Without a PWN, parents cannot effectively challenge school decisions in mediation or due process. It forces the school to base their decisions on objective data and prevents them from unilaterally changing services or placements without prior notification. If a school representative verbally promises or denies a service during an IEP meeting, it is not legally binding until it is written into a PWN.
-
-**Example 1: PWN for a Proposal (Initiating Services)**
-*   **Action Proposed:** The Department proposes to initiate twice-weekly occupational therapy (OT) services for 30 minutes per session in the general education setting.
-*   **Reason for Proposal:** The student's recent fine motor evaluation dated May 14, 2026, indicated significant deficits in bilateral coordination and handwriting speed, impacting their ability to complete grade-level written assignments.
-*   **Data Used:** Occupational Therapy Evaluation Report (dated 5/14/2026), classroom work samples, and teacher observation logs.
-*   **Options Rejected:** Weekly 30-minute OT session. This was rejected because the evaluation data indicates the student requires more frequent, intensive direct instruction to meet their IEP handwriting goals.
-
-**Example 2: PWN for a Refusal (Denying an Accommodation)**
-*   **Action Refused:** The Department refuses the parent's request to provide a dedicated 1-on-1 full-time educational assistant (EA) for behavioral support.
-*   **Reason for Refusal:** The school team's Functional Behavioral Assessment (FBA) conducted from April 1 to April 30, 2026, demonstrates that the student's behaviors can be successfully managed in the general classroom using the existing Behavior Intervention Plan (BIP), which includes sensory breaks and visual schedules. Providing an EA would unnecessarily restrict the student's independence and peer interaction.
-*   **Data Used:** FBA data sheets, behavior log entries, and counselor reports.
-*   **Options Rejected:** Granting a part-time EA. This was rejected because data shows that consistent implementation of the BIP by the regular education staff is sufficient, and adding an additional adult facilitator would lead to prompt dependency.`
-        }
-      });
-    }
-
-    // Sync default articles to ensure any updates in the codebase are written to the database
-    for (const defArt of DEFAULT_ARTICLES) {
-      const existing = await prisma.post.findFirst({
-        where: { title: defArt.title }
-      });
-      if (existing) {
-        await prisma.post.update({
-          where: { id: existing.id },
-          data: {
-            category: defArt.category,
-            excerpt: defArt.excerpt,
-            content: defArt.content,
-            date: defArt.date
-          }
-        });
-      } else {
+    const count = await prisma.post.count();
+    if (count === 0) {
+      for (const defArt of DEFAULT_ARTICLES) {
         await prisma.post.create({
           data: defArt
         });

@@ -140,7 +140,9 @@ export default function AdminPage() {
 
   const fetchCoupons = async () => {
     try {
-      const res = await fetch("/api/coupons");
+      const res = await fetch("/api/coupons", {
+        headers: { "x-admin-passcode": passcode }
+      });
       const data = await res.json();
       if (res.ok) {
         setCoupons(data.coupons || []);
@@ -568,14 +570,27 @@ export default function AdminPage() {
     }
   };
 
-  const handleVerifyPasscode = (e: React.FormEvent) => {
+  const handleVerifyPasscode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (passcode === "graditide" || passcode === "gratitude") {
-      setIsAuthorized(true);
-      setStatus({ type: "success", message: "Passcode verified. Welcome, Administrator." });
-      setTimeout(() => setStatus(null), 3000);
-    } else {
-      setStatus({ type: "error", message: "Invalid admin passcode. Access denied." });
+    const cleanPasscode = passcode.trim();
+    if (!cleanPasscode) {
+      setStatus({ type: "error", message: "Please enter an admin passcode." });
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/coupons", {
+        headers: { "x-admin-passcode": cleanPasscode }
+      });
+      if (res.ok) {
+        setIsAuthorized(true);
+        setStatus({ type: "success", message: "Passcode verified. Welcome, Administrator." });
+        setTimeout(() => setStatus(null), 3000);
+      } else {
+        setStatus({ type: "error", message: "Invalid admin passcode. Access denied." });
+      }
+    } catch {
+      setStatus({ type: "error", message: "Error verifying passcode with server." });
     }
   };
 

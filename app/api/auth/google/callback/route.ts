@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
 
               if (window.opener) {
                 // Popup flow (desktop web)
-                window.opener.postMessage({ type: 'GOOGLE_AUTH_TOKEN', token: authData.token }, '*');
+                window.opener.postMessage({ type: 'GOOGLE_AUTH_TOKEN', token: authData.token }, window.location.origin);
                 setTimeout(() => window.close(), 800);
               } else if (isAndroidApp) {
                 // Android: try to open the app via custom URL scheme

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import prisma from '@/lib/prisma';
 import { hashPassword } from '@/lib/auth';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
     if (existingUser) {
       // If user exists but is not verified, we can let them re-register and send a new code
       if (!existingUser.emailVerified) {
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        const code = crypto.randomInt(100000, 1000000).toString();
         const codeExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
         await prisma.user.update({
@@ -90,7 +91,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email is already registered' }, { status: 400 });
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = crypto.randomInt(100000, 1000000).toString();
     const codeExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
     // Hash password and store user

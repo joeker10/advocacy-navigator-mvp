@@ -163,7 +163,7 @@ export function SettingsModal({
                   const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.();
                   if (isNative) {
                     alert('Opening Google Play Subscription window...');
-                    window.open('https://play.google.com/store/account/subscriptions?sku=sped_nav_monthly_unlimited&package=app.thespecialeducationnavigator.advocacy', '_system');
+                    window.open('https://play.google.com/store/account/subscriptions?sku=sped_nav_monthly_unlimited&package=app.thespecialeducationnavigator', '_system');
                   } else {
                     alert('To complete your subscription, please open The Special Education Navigator app on Google Play to complete payment via Google Play Billing.');
                   }
