@@ -139,7 +139,13 @@ export async function GET(req: NextRequest) {
 
               if (window.opener) {
                 // Popup flow (desktop web)
-                window.opener.postMessage({ type: 'GOOGLE_AUTH_TOKEN', token: authData.token }, window.location.origin);
+                let targetOrigin = window.location.origin;
+                try {
+                  if (window.opener && window.opener.location && window.opener.location.origin) {
+                    targetOrigin = window.opener.location.origin;
+                  }
+                } catch (e) {}
+                window.opener.postMessage({ type: 'GOOGLE_AUTH_TOKEN', token: authData.token }, targetOrigin);
                 setTimeout(() => window.close(), 800);
               } else if (isAndroidApp) {
                 // Android: try to open the app via custom URL scheme
@@ -148,7 +154,11 @@ export async function GET(req: NextRequest) {
 
                 // Try intent URL to bring the app back to foreground
                 const intentUrl = 'intent://auth?token=' + encodeURIComponent(authData.token) + '&email=' + encodeURIComponent(userEmail) + '#Intent;scheme=app.thespecialeducationnavigator;package=app.thespecialeducationnavigator;end';
-                window.location.href = intentUrl;
+                try {
+                  window.location.href = intentUrl;
+                } catch (e) {
+                  window.location.href = appSchemeUrl;
+                }
 
                 // Fallback: show a button to go back
                 setTimeout(() => {

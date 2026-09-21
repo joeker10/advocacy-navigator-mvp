@@ -4,14 +4,22 @@ import type { NextRequest } from 'next/server';
 const ALLOWED_ORIGINS = [
   'https://www.thespecialeducationnavigator.app',
   'https://thespecialeducationnavigator.app',
-  'capacitor://localhost',
+  'https://localhost',
   'http://localhost',
+  'capacitor://localhost',
+  'ionic://localhost',
   'http://localhost:3000',
+  'http://127.0.0.1',
+  'http://127.0.0.1:3000',
+  'https://127.0.0.1',
 ];
 
 function isOriginAllowed(origin: string | null): boolean {
-  if (!origin) return false;
-  return ALLOWED_ORIGINS.includes(origin) || origin.startsWith('http://192.168.');
+  if (!origin) return true;
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
+  if (origin.startsWith('http://192.168.') || origin.startsWith('http://10.') || origin.startsWith('http://172.')) return true;
+  if (origin.startsWith('capacitor://') || origin.startsWith('app.thespecialeducationnavigator://')) return true;
+  return false;
 }
 
 export function middleware(request: NextRequest) {

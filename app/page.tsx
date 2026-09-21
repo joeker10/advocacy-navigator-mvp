@@ -463,25 +463,105 @@ export default function Home() {
     setIsSubscribedToNewsletter(localStorage.getItem("spednav_newsletter_subscribed") === "true");
 
     const handleAuthMessage = async (event: MessageEvent) => {
-      if (typeof window !== 'undefined' && event.origin !== window.location.origin) return;
+      const allowedOrigins = [
+        typeof window !== 'undefined' ? window.location.origin : '',
+        'https://www.thespecialeducationnavigator.app',
+        'https://thespecialeducationnavigator.app',
+        'https://localhost',
+        'http://localhost:3000',
+      ];
+      if (typeof window !== 'undefined' && !allowedOrigins.includes(event.origin)) return;
       if (event.data?.type === 'GOOGLE_AUTH_TOKEN' && event.data?.token) {
         const authToken = event.data.token;
         try {
-          const r = await fetch(`${API_URL}/api/auth/session`, {
+          const targetApi = "https://www.thespecialeducationnavigator.app";
+          const r = await fetch(`${targetApi}/api/auth/session`, {
             headers: { Authorization: `Bearer ${authToken}` }
           });
           const d = await r.json();
           if (d.user) {
             await applyAuthenticatedUser(d.user, authToken);
+            return;
           }
         } catch (e) {
-          console.error(e);
+          console.error("Auth message session fetch error:", e);
         }
+        localStorage.setItem("spednav_auth_token", authToken);
+        setToken(authToken);
+        setIsAuthenticated(true);
       }
     };
 
     window.addEventListener('message', handleAuthMessage);
-    return () => window.removeEventListener('message', handleAuthMessage);
+
+    // Global listener for deep link authentication (Capacitor Android / iOS)
+    let urlListener: any = null;
+    const isNative = typeof window !== 'undefined' && Boolean(
+      (window as any).Capacitor?.isNativePlatform?.() ||
+      window.location.href.startsWith("file:") ||
+      (window.location.hostname === "localhost" && window.location.port === "")
+    );
+
+    if (isNative) {
+      try {
+        const { App } = require('@capacitor/app');
+        const { Browser } = require('@capacitor/browser');
+
+        const processAuthUrl = async (rawUrl: string) => {
+          if (!rawUrl) return;
+          if (rawUrl.includes('app.thespecialeducationnavigator') || rawUrl.includes('auth?token=') || rawUrl.includes('auth#token=')) {
+            try { await Browser.close(); } catch (e) {}
+
+            const queryPart = rawUrl.includes('?')
+              ? rawUrl.split('?')[1].split('#')[0]
+              : (rawUrl.includes('#') ? rawUrl.split('#')[1] : '');
+            const params = new URLSearchParams(queryPart);
+            const authToken = params.get('token');
+            const email = params.get('email');
+
+            if (authToken) {
+              try {
+                const targetApi = "https://www.thespecialeducationnavigator.app";
+                const sessionRes = await fetch(`${targetApi}/api/auth/session`, {
+                  method: "GET",
+                  headers: { "Authorization": `Bearer ${authToken}` }
+                });
+                const sessionData = await sessionRes.json();
+                if (sessionData.success && sessionData.user) {
+                  await applyAuthenticatedUser(sessionData.user, authToken);
+                  return;
+                }
+              } catch (e) {
+                console.error("Deep link session fetch failed:", e);
+              }
+              localStorage.setItem("spednav_auth_token", authToken);
+              setToken(authToken);
+              setIsAuthenticated(true);
+              if (email) syncWithServer(authToken, email);
+            }
+          }
+        };
+
+        App.addListener('appUrlOpen', (event: any) => {
+          processAuthUrl(event.url);
+        }).then((l: any) => { urlListener = l; });
+
+        App.getLaunchUrl().then((launchUrl: any) => {
+          if (launchUrl?.url) {
+            processAuthUrl(launchUrl.url);
+          }
+        });
+      } catch (err) {
+        console.warn("Deep link setup failed:", err);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('message', handleAuthMessage);
+      if (urlListener && typeof urlListener.remove === 'function') {
+        urlListener.remove();
+      }
+    };
   }, []);
 
   const handleToggleNewsletterSubscription = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -994,30 +1074,36 @@ export default function Home() {
             // Listen for the deep link redirect back from the callback page
             const urlListener = await App.addListener('appUrlOpen', async (event: any) => {
               const url = event.url || "";
-              if (url.includes('app.thespecialeducationnavigator://auth')) {
+              if (url.includes('app.thespecialeducationnavigator') || url.includes('auth?token=') || url.includes('auth#token=')) {
                 urlListener.remove();
                 try { await Browser.close(); } catch (e) {}
 
                 // Extract token and email from the deep link URL
-                const params = new URLSearchParams(url.split('?')[1] || "");
+                const queryPart = url.includes('?') 
+                  ? url.split('?')[1].split('#')[0] 
+                  : (url.includes('#') ? url.split('#')[1] : '');
+                const params = new URLSearchParams(queryPart);
                 const authToken = params.get('token');
                 const email = params.get('email');
 
                 if (authToken) {
-                  // Fetch full session to get user object
-                  const sessionRes = await fetch(`${API_URL}/api/auth/session`, {
-                    method: "GET",
-                    headers: { "Authorization": `Bearer ${authToken}` }
-                  });
-                  const sessionData = await sessionRes.json();
-                  if (sessionData.success && sessionData.user) {
-                    await applyAuthenticatedUser(sessionData.user, authToken);
-                  } else {
-                    localStorage.setItem("spednav_auth_token", authToken);
-                    setToken(authToken);
-                    setIsAuthenticated(true);
-                    syncWithServer(authToken, email || undefined);
+                  try {
+                    const sessionRes = await fetch(`${API_URL}/api/auth/session`, {
+                      method: "GET",
+                      headers: { "Authorization": `Bearer ${authToken}` }
+                    });
+                    const sessionData = await sessionRes.json();
+                    if (sessionData.success && sessionData.user) {
+                      await applyAuthenticatedUser(sessionData.user, authToken);
+                      return;
+                    }
+                  } catch (e) {
+                    console.error("Deep link session fetch failed:", e);
                   }
+                  localStorage.setItem("spednav_auth_token", authToken);
+                  setToken(authToken);
+                  setIsAuthenticated(true);
+                  if (email) syncWithServer(authToken, email);
                 }
               }
             });
