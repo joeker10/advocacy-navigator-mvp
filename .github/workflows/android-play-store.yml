@@ -28,9 +28,10 @@ jobs:
 
       # 4. Export Web App Static Assets for Capacitor
       - name: Build and Export Web App
-        env:
-          CAPACITOR_BUILD: 'true'
-        run: npm run build
+        run: |
+          mv app/api ./api-temp || true
+          CAPACITOR_BUILD=true npm run build
+          mv ./api-temp app/api || true
 
       # 5. Sync Web Assets to Android Platform
       - name: Sync Capacitor Android
