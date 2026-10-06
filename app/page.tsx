@@ -811,7 +811,7 @@ export default function Home() {
       const g = (window as any).google;
       if (g && g.accounts && g.accounts.id) {
         g.accounts.id.initialize({
-          client_id: "584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com",
+          client_id: "1047508462571-ql85gp42i8218h0rpsqpj8lcn92shjt1.apps.googleusercontent.com",
           callback: async (response: any) => {
             const tokenVal = response.credential;
             setAuthError("");
@@ -981,7 +981,7 @@ export default function Home() {
         const view = new g.picker.DocsView(g.picker.ViewId.DOCS);
         const picker = new g.picker.PickerBuilder()
           .enableFeature(g.picker.Feature.MULTISELECT_ENABLED)
-          .setAppId("584515942995")
+          .setAppId("1047508462571")
           .addView(view)
           .addView(new g.picker.DocsUploadView())
           .setCallback(async (data: any) => {
@@ -1018,8 +1018,8 @@ export default function Home() {
         try {
           const { GoogleAuth } = require('@codetrix-studio/capacitor-google-auth');
           GoogleAuth.initialize({
-            clientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
-            serverClientId: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
+            clientId: '1047508462571-ql85gp42i8218h0rpsqpj8lcn92shjt1.apps.googleusercontent.com',
+            serverClientId: '1047508462571-ql85gp42i8218h0rpsqpj8lcn92shjt1.apps.googleusercontent.com',
             scopes: ['profile', 'email'],
           });
 
@@ -1108,7 +1108,7 @@ export default function Home() {
               }
             });
 
-            const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com&redirect_uri=https://www.thespecialeducationnavigator.app/api/auth/google/callback&response_type=token&scope=openid%20email%20profile&prompt=select_account`;
+            const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=1047508462571-ql85gp42i8218h0rpsqpj8lcn92shjt1.apps.googleusercontent.com&redirect_uri=https://www.thespecialeducationnavigator.app/api/auth/google/callback&response_type=token&scope=openid%20email%20profile&prompt=select_account`;
             await Browser.open({ url: oauthUrl });
             return;
           } catch (browserErr) {
@@ -1123,7 +1123,7 @@ export default function Home() {
       const g = (window as any).google;
       if (g && g.accounts && g.accounts.oauth2) {
         const client = g.accounts.oauth2.initTokenClient({
-          client_id: '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
+          client_id: '1047508462571-ql85gp42i8218h0rpsqpj8lcn92shjt1.apps.googleusercontent.com',
           scope: 'email profile',
           callback: async (tokenResponse: any) => {
             if (tokenResponse && tokenResponse.access_token) {
@@ -1153,7 +1153,7 @@ export default function Home() {
         g.accounts.id.prompt();
       } else {
         // Direct browser fallback on web only (not Android)
-        const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com&redirect_uri=https://www.thespecialeducationnavigator.app/api/auth/google/callback&response_type=token&scope=openid%20email%20profile&prompt=select_account`;
+        const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=1047508462571-ql85gp42i8218h0rpsqpj8lcn92shjt1.apps.googleusercontent.com&redirect_uri=https://www.thespecialeducationnavigator.app/api/auth/google/callback&response_type=token&scope=openid%20email%20profile&prompt=select_account`;
         window.location.href = oauthUrl;
       }
     } catch (err: any) {

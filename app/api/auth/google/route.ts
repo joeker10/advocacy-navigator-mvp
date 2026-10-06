@@ -4,6 +4,8 @@ import prisma from '@/lib/prisma';
 import { signToken } from '@/lib/auth';
 
 const VALID_GOOGLE_CLIENT_IDS = [
+  '1047508462571-ql85gp42i8218h0rpsqpj8lcn92shjt1.apps.googleusercontent.com',
+  '1047508462571-6d078en5l2k7t6fre6m7s9ea7obrmec9.apps.googleusercontent.com',
   '584515942995-o6cjeqcm3k14jgr3jrkrmro0ash879qs.apps.googleusercontent.com',
   '76978043008-5riscv5374dum0a66mamauu2vnsovlb8.apps.googleusercontent.com'
 ];

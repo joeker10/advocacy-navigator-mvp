@@ -148,24 +148,20 @@ export async function GET(req: NextRequest) {
                 window.opener.postMessage({ type: 'GOOGLE_AUTH_TOKEN', token: authData.token }, targetOrigin);
                 setTimeout(() => window.close(), 800);
               } else if (isAndroidApp) {
-                // Android: try to open the app via custom URL scheme
+                // Android: show prominent return button and try automatic intent
                 title.innerText = "✅ Signed In!";
-                desc.innerText = "Returning to SpEd Navigator...";
+                desc.innerText = "Tap the button below to return to SpEd Navigator.";
+                backContainer.style.display = 'block';
+                backBtn.innerText = "Tap to Open SpEd Navigator";
+                backBtn.href = appSchemeUrl;
 
-                // Try intent URL to bring the app back to foreground
+                // Try intent URL to bring the app back to foreground automatically
                 const intentUrl = 'intent://auth?token=' + encodeURIComponent(authData.token) + '&email=' + encodeURIComponent(userEmail) + '#Intent;scheme=app.thespecialeducationnavigator;package=app.thespecialeducationnavigator;end';
                 try {
                   window.location.href = intentUrl;
                 } catch (e) {
                   window.location.href = appSchemeUrl;
                 }
-
-                // Fallback: show a button to go back
-                setTimeout(() => {
-                  backContainer.style.display = 'block';
-                  backBtn.href = appSchemeUrl;
-                  desc.innerText = "If the app didn't open automatically, tap the button below.";
-                }, 1500);
               } else {
                 // Regular web: redirect to home
                 setTimeout(() => { window.location.href = '/'; }, 800);
