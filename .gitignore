@@ -45,3 +45,6 @@ next-env.d.ts
 # signing keys
 *.jks
 key-base64.txt
+*.aab
+*.zip
+/release-bundle/
