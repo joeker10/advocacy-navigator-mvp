@@ -46,7 +46,8 @@ jobs:
 
       # 7. Setup Android SDK
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
       # 8. Build Android Release Bundle (.aab)
       - name: Build Release App Bundle (.aab)
