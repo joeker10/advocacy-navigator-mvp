@@ -18,15 +18,19 @@ android {
     }
     signingConfigs {
         release {
-            storeFile file("../../release-key.jks")
-            storePassword "graditide"
-            keyAlias "my-app-alias"
-            keyPassword "graditide"
+            if (file("../../release-key.jks").exists()) {
+                storeFile file("../../release-key.jks")
+                storePassword "graditide"
+                keyAlias "my-app-alias"
+                keyPassword "graditide"
+            }
         }
     }
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            if (file("../../release-key.jks").exists()) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

@@ -76,8 +76,9 @@ jobs:
           path: ${{ steps.sign_app.outputs.signedReleaseFile }}
 
       # 11. Upload App Bundle to Google Play Console
-      # Deploys signed .aab to Google Play internal testing track
+      # Deploys signed .aab to Google Play internal testing track (if PLAY_STORE_JSON_KEY secret is present)
       - name: Upload to Google Play Console
+        if: ${{ env.PLAY_STORE_KEY != '' }}
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
@@ -85,3 +86,5 @@ jobs:
           releaseFiles: ${{ steps.sign_app.outputs.signedReleaseFile }}
           track: internal
           status: completed
+        env:
+          PLAY_STORE_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
