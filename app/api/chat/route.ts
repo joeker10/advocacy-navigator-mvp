@@ -104,9 +104,19 @@ Scope of Practice: You are an analytical tool, not a licensed attorney. Do not i
       systemPrompt += `\nUse this exact student context to formulate highly specific answers. If the answer is not in this context, trigger the 'Probabilistic Uncertainty' constraint.`;
     }
 
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.0-flash",
+    const primaryModel = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
       systemInstruction: systemPrompt 
+    });
+
+    const fallbackModel20 = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      systemInstruction: systemPrompt
+    });
+
+    const fallbackModelLite = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash-lite",
+      systemInstruction: systemPrompt
     });
 
     // Convert previous front-end user history into Gemini Chat format
@@ -123,7 +133,7 @@ Scope of Practice: You are an analytical tool, not a licensed attorney. Do not i
     }
 
     // Initialize stateful API bridge
-    const chat = model.startChat({
+    const chat = primaryModel.startChat({
       history: formattedHistory,
       generationConfig: {
         temperature: 0.1, // Near zero temperature enforces rigid instruction adherence
@@ -131,26 +141,35 @@ Scope of Practice: You are an analytical tool, not a licensed attorney. Do not i
       }
     });
 
-    // Execute Stateless Query with retry and fallback to gemini-1.5-flash under high demand
+    // Execute Stateless Query with retry and fallback chain
     const result = await retryWithBackoff(
       () => chat.sendMessage(sanitizedQuery),
       3,
       1000,
-      async () => {
-        console.warn("[Gemini API Fallback] Initializing gemini-1.5-flash chat session...");
-        const fallbackModel = genAI.getGenerativeModel({
-          model: "gemini-1.5-flash",
-          systemInstruction: systemPrompt
-        });
-        const fallbackChat = fallbackModel.startChat({
-          history: formattedHistory,
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 4096,
-          }
-        });
-        return await fallbackChat.sendMessage(sanitizedQuery);
-      }
+      [
+        async () => {
+          console.warn("[Gemini API Fallback] Initializing gemini-2.0-flash chat session...");
+          const fallbackChat = fallbackModel20.startChat({
+            history: formattedHistory,
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 4096,
+            }
+          });
+          return await fallbackChat.sendMessage(sanitizedQuery);
+        },
+        async () => {
+          console.warn("[Gemini API Fallback] Initializing gemini-2.0-flash-lite chat session...");
+          const fallbackChat = fallbackModelLite.startChat({
+            history: formattedHistory,
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 4096,
+            }
+          });
+          return await fallbackChat.sendMessage(sanitizedQuery);
+        }
+      ]
     );
     const responseText = result.response.text();
 

@@ -54,43 +54,111 @@ export async function POST(req: NextRequest) {
     }
 
     const parts: any[] = [];
-    const primaryMimeType = files[0].type;
     const combinedFileName = files.length > 1 ? `Batch_${files.length}_Documents` : files[0].name;
+    let hasAudio = false;
+    let hasImage = false;
+    let hasPdfOrDoc = false;
 
     for (const file of files) {
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      
-      const isDocx = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx');
-      const isDoc = file.type === 'application/msword' || file.name.endsWith('.doc');
-      const isOdt = file.type === 'application/vnd.oasis.opendocument.text' || file.name.endsWith('.odt');
+      const fileNameLower = (file.name || '').toLowerCase();
+      const mime = (file.type || '').trim().toLowerCase();
+
+      // Check magic numbers for common binary formats
+      const isPdfMagic = buffer.length >= 4 && buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46; // %PDF
+      const isJpegMagic = buffer.length >= 3 && buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
+      const isPngMagic = buffer.length >= 4 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47;
+      const isWebpMagic = buffer.length >= 12 && buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+      const isZipMagic = buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04;
+
+      const isDocx = mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || fileNameLower.endsWith('.docx') || (isZipMagic && fileNameLower.endsWith('.docx'));
+      const isDoc = mime === 'application/msword' || fileNameLower.endsWith('.doc');
+      const isOdt = mime === 'application/vnd.oasis.opendocument.text' || fileNameLower.endsWith('.odt');
+      const isText = mime.startsWith('text/') || fileNameLower.endsWith('.txt') || fileNameLower.endsWith('.csv') || fileNameLower.endsWith('.tsv') || fileNameLower.endsWith('.rtf') || fileNameLower.endsWith('.md');
+      const isPdf = mime === 'application/pdf' || fileNameLower.endsWith('.pdf') || isPdfMagic;
+      const isImage = mime.startsWith('image/') || isJpegMagic || isPngMagic || isWebpMagic || fileNameLower.endsWith('.jpg') || fileNameLower.endsWith('.jpeg') || fileNameLower.endsWith('.png') || fileNameLower.endsWith('.webp') || fileNameLower.endsWith('.heic') || fileNameLower.endsWith('.heif');
+      const isAudio = mime.startsWith('audio/') || fileNameLower.endsWith('.mp3') || fileNameLower.endsWith('.wav') || fileNameLower.endsWith('.m4a') || fileNameLower.endsWith('.aac') || fileNameLower.endsWith('.ogg') || fileNameLower.endsWith('.flac');
 
       if (isDocx) {
+        hasPdfOrDoc = true;
         const xml = extractTextFromZip(buffer, ['word/document.xml']);
         const text = xml ? parseDocxText(xml) : '';
         parts.push({
-          text: `Document Name: ${file.name}\nDocument Plain Text Content:\n${text}\n`
+          text: `Document Name: ${file.name}\nDocument Plain Text Content:\n${text || '[Empty or unreadable DOCX]'}\n`
         });
       } else if (isOdt) {
+        hasPdfOrDoc = true;
         const xml = extractTextFromZip(buffer, ['content.xml']);
         const text = xml ? parseOdtText(xml) : '';
         parts.push({
-          text: `Document Name: ${file.name}\nDocument Plain Text Content:\n${text}\n`
+          text: `Document Name: ${file.name}\nDocument Plain Text Content:\n${text || '[Empty or unreadable ODT]'}\n`
         });
       } else if (isDoc) {
+        hasPdfOrDoc = true;
+        // Legacy .doc is binary; extract printable text strings
+        const raw = buffer.toString('utf-8').replace(/[^\x20-\x7E\r\n\t]/g, ' ');
+        const cleaned = raw.split(/\n+/).map(l => l.trim()).filter(l => l.length > 3).join('\n');
+        parts.push({
+          text: `Document Name: ${file.name}\nDocument Plain Text Content (Legacy DOC):\n${cleaned || '[Unable to parse binary DOC text]'}\n`
+        });
+      } else if (isText) {
+        hasPdfOrDoc = true;
+        const text = buffer.toString('utf-8');
+        parts.push({
+          text: `Document Name: ${file.name}\nDocument Plain Text Content:\n${text}\n`
+        });
+      } else if (isPdf) {
+        hasPdfOrDoc = true;
         parts.push({
           inlineData: {
             data: buffer.toString('base64'),
-            mimeType: 'application/msword'
+            mimeType: 'application/pdf'
+          }
+        });
+      } else if (isImage) {
+        hasImage = true;
+        let imageMime = 'image/jpeg';
+        if (isPngMagic || fileNameLower.endsWith('.png') || mime === 'image/png') imageMime = 'image/png';
+        else if (isWebpMagic || fileNameLower.endsWith('.webp') || mime === 'image/webp') imageMime = 'image/webp';
+        else if (fileNameLower.endsWith('.heic') || mime === 'image/heic') imageMime = 'image/heic';
+        else if (fileNameLower.endsWith('.heif') || mime === 'image/heif') imageMime = 'image/heif';
+
+        parts.push({
+          inlineData: {
+            data: buffer.toString('base64'),
+            mimeType: imageMime
+          }
+        });
+      } else if (isAudio) {
+        hasAudio = true;
+        let audioMime = 'audio/mp3';
+        if (fileNameLower.endsWith('.wav') || mime === 'audio/wav') audioMime = 'audio/wav';
+        else if (fileNameLower.endsWith('.aac') || fileNameLower.endsWith('.m4a') || mime === 'audio/aac') audioMime = 'audio/aac';
+        else if (fileNameLower.endsWith('.ogg') || mime === 'audio/ogg') audioMime = 'audio/ogg';
+        else if (fileNameLower.endsWith('.flac') || mime === 'audio/flac') audioMime = 'audio/flac';
+        else if (mime.startsWith('audio/')) audioMime = mime;
+
+        parts.push({
+          inlineData: {
+            data: buffer.toString('base64'),
+            mimeType: audioMime
           }
         });
       } else {
-        parts.push({
-          inlineData: {
-            data: buffer.toString('base64'),
-            mimeType: file.type || 'application/octet-stream'
-          }
-        });
+        // Unknown format: check if it's UTF-8 valid text
+        const asUtf8 = buffer.toString('utf-8');
+        const isPrintable = /^[\x09\x0A\x0D\x20-\x7E\u00A0-\uFFFF]*$/.test(asUtf8.slice(0, 1000));
+        if (isPrintable && asUtf8.length > 0) {
+          hasPdfOrDoc = true;
+          parts.push({
+            text: `Document Name: ${file.name}\nDocument Plain Text Content:\n${asUtf8}\n`
+          });
+        } else {
+          return NextResponse.json({
+            error: `Unsupported file format for "${file.name}". Please upload PDF, Word (DOCX), image (JPEG/PNG), or text documents.`
+          }, { status: 400 });
+        }
       }
     }
 
@@ -116,8 +184,8 @@ export async function POST(req: NextRequest) {
       required: ["assessmentName", "assessmentVersion", "behavioralInfo", "strengths", "needs", "takeaways", "accommodations", "rawTranscript", "uncertainties"]
     };
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
+    const primaryModel = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: extractSchema,
@@ -125,18 +193,43 @@ export async function POST(req: NextRequest) {
       }
     });
 
+    const fallbackModel20 = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: extractSchema,
+        temperature: 0.2,
+      }
+    });
+
+    const fallbackModelLite = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash-lite",
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: extractSchema,
+        temperature: 0.2,
+      }
+    });
+
     let promptText = `
       You are an expert Special Education Advocate operating under Hawaii HAR Chapter 60 regulations.
-      Your task is to analyze the attached IEP or Educational PDF document(s) and strictly extract the requested fields.
+      Your task is to analyze the attached IEP or Educational PDF/document(s) and strictly extract the requested fields.
       If there are multiple pages or documents attached, synthesize them together into a single unified extraction.
       Pay special attention to tabular data, matrices, and visual checkboxes.
       Ensure information is concise and exactly maps to the student's legal rights.
 
-      For 'rawTranscript', perform strict OCR to reconstruct the full textual content of the document.
+      For 'rawTranscript', perform strict OCR or text synthesis to reconstruct the comprehensive textual content of the document(s).
       For 'uncertainties', identify any fields or sections where you are uncertain, information was illegible/ambiguous, or draft fields were incomplete. If none, write 'None'.
     `;
 
-    if (primaryMimeType.startsWith('image/')) {
+    if (hasAudio && !hasPdfOrDoc && !hasImage) {
+      promptText = `
+        You are an expert Special Education Advocate. Your task is to analyze the attached audio recording of an IEP or 504 meeting. Transcribe the relevant conversation and extract the requested fields based on the verbal commitments made by school staff.
+
+        For 'rawTranscript', provide a comprehensive transcription of the dialogue in the audio recording.
+        For 'uncertainties', identify any inaudible words, speech overlap, or ambiguity in verbal commitments. If none, write 'None'.
+      `;
+    } else if (hasImage && !hasPdfOrDoc) {
       promptText = `
         You are an expert Special Education Advocate. Your task is to analyze the attached image(s), performing strong OCR to read handwritten notes, behavioral logs, or IEP matrices. 
         If multiple images are attached, they represent sequential pages of a single document. Synthesize them into a single extraction. Strictly extract the requested fields. Ensure information is concise.
@@ -144,31 +237,22 @@ export async function POST(req: NextRequest) {
         For 'rawTranscript', perform strict OCR to reconstruct the full textual content of the image(s).
         For 'uncertainties', identify any areas of handwritten notes or illegible sections where you have uncertainty. If none, write 'None'.
       `;
-    } else if (primaryMimeType.startsWith('audio/')) {
-      promptText = `
-        You are an expert Special Education Advocate. Your task is to analyze the attached audio recording of an IEP or 504 meeting. Transcribe the relevant conversation and extract the requested fields based on the verbal commitments made by school staff.
-
-        For 'rawTranscript', provide a comprehensive transcription of the dialogue in the audio recording.
-        For 'uncertainties', identify any inaudible words, speech overlap, or ambiguity in verbal commitments. If none, write 'None'.
-      `;
     }
 
     const aiResult = await retryWithBackoff(
-      () => model.generateContent([promptText, ...parts]),
+      () => primaryModel.generateContent([promptText, ...parts]),
       3,
       1000,
-      async () => {
-        console.warn("[Gemini API Fallback] Initializing gemini-1.5-flash for document extraction...");
-        const fallbackModel = genAI.getGenerativeModel({
-          model: "gemini-1.5-flash",
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: extractSchema,
-            temperature: 0.2,
-          }
-        });
-        return await fallbackModel.generateContent([promptText, ...parts]);
-      }
+      [
+        () => {
+          console.warn("[Gemini API Fallback] Invoking gemini-2.0-flash for document extraction...");
+          return fallbackModel20.generateContent([promptText, ...parts]);
+        },
+        () => {
+          console.warn("[Gemini API Fallback] Invoking gemini-2.0-flash-lite for document extraction...");
+          return fallbackModelLite.generateContent([promptText, ...parts]);
+        }
+      ]
     );
     const responseText = aiResult.response.text();
     let extracted;
