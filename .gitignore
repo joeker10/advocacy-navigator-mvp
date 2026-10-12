@@ -48,3 +48,4 @@ key-base64.txt
 *.aab
 *.zip
 /release-bundle/
+.vscode/

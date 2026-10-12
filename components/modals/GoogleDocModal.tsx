@@ -9,7 +9,8 @@ interface Props {
   setGoogleDocUrl: (url: string) => void;
   isImportingGoogleDoc: boolean;
   handlePasteAndImport: () => Promise<void>;
-  handleGoogleDocImport: () => Promise<void>;
+  handleGoogleDocImport: (targetUrl?: string) => Promise<void>;
+  openGoogleDrivePicker?: () => void;
 }
 
 export function GoogleDocModal({
@@ -20,6 +21,7 @@ export function GoogleDocModal({
   isImportingGoogleDoc,
   handlePasteAndImport,
   handleGoogleDocImport,
+  openGoogleDrivePicker,
 }: Props) {
   if (!isOpen) return null;
 
@@ -38,7 +40,7 @@ export function GoogleDocModal({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '2rem',
+        padding: '1.5rem',
       }}
       onClick={onClose}
     >
@@ -47,15 +49,17 @@ export function GoogleDocModal({
         style={{
           width: '100%',
           maxWidth: '560px',
-          padding: '2.25rem',
+          padding: '2rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '1.5rem',
+          gap: '1.25rem',
           background: 'var(--surface)',
           border: '1px solid var(--glass-border)',
           position: 'relative',
           overflow: 'hidden',
           borderRadius: '16px',
+          maxHeight: '90vh',
+          overflowY: 'auto',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -63,7 +67,7 @@ export function GoogleDocModal({
         <div className="kapa-accent-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '6px' }} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ fontSize: '1.3rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--foreground)', margin: 0 }}>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--foreground)', margin: 0 }}>
             <svg width="28" height="28" viewBox="0 0 100 100" fill="var(--primary)">
               <circle cx="50" cy="55" r="22" />
               <circle cx="50" cy="22" r="8" />
@@ -73,26 +77,29 @@ export function GoogleDocModal({
           </h3>
           <button
             onClick={onClose}
-            style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: 'var(--foreground)', cursor: 'pointer' }}
+            style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: 'var(--foreground)', cursor: 'pointer', lineHeight: 1 }}
           >
             &times;
           </button>
         </div>
 
         {/* 3 Simple Steps Banner */}
-        <div style={{ padding: '1rem 1.25rem', borderRadius: '14px', background: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+        <div style={{ padding: '0.9rem 1.1rem', borderRadius: '14px', background: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontSize: '1.2rem' }}>📌</span>
-            <strong style={{ fontSize: '0.95rem', color: 'var(--foreground)' }}>How to Import Any Google Doc in Seconds:</strong>
+            <span style={{ fontSize: '1.1rem' }}>📌</span>
+            <strong style={{ fontSize: '0.9rem', color: 'var(--foreground)' }}>How to Import Your Google Doc:</strong>
           </div>
-          <div style={{ fontSize: '0.85rem', opacity: 0.9, display: 'flex', flexDirection: 'column', gap: '0.35rem', lineHeight: 1.4 }}>
-            <div><strong>1.</strong> In the Google Docs or Drive app, open your document.</div>
-            <div><strong>2.</strong> Tap <strong>Share</strong> (or <strong>... &rarr; Share & export &rarr; Copy link</strong>).</div>
-            <div><strong>3.</strong> Return here and tap <strong>📋 Paste Link & Import</strong> below!</div>
+          <div style={{ fontSize: '0.825rem', opacity: 0.9, display: 'flex', flexDirection: 'column', gap: '0.3rem', lineHeight: 1.4 }}>
+            <div><strong>1.</strong> In Google Docs, open your IEP or assessment document.</div>
+            <div><strong>2.</strong> Tap <strong>Share</strong> &rarr; ensure <em>General access</em> is <strong>&quot;Anyone with the link&quot;</strong> &rarr; <strong>Copy link</strong>.</div>
+            <div><strong>3.</strong> Return here and tap <strong>📋 Paste Link &amp; Import</strong> below!</div>
+            <div style={{ marginTop: '0.2rem', opacity: 0.8, fontSize: '0.78rem' }}>
+              💡 <em>Alternatively, tap <strong>📁 Pick File from Google Drive</strong> or export the doc as PDF/DOCX and upload directly.</em>
+            </div>
           </div>
         </div>
 
-        {/* 1-Tap Quick Action Buttons */}
+        {/* Action Buttons */}
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
           <button
             type="button"
@@ -100,13 +107,13 @@ export function GoogleDocModal({
             disabled={isImportingGoogleDoc}
             style={{
               flex: '1 1 200px',
-              padding: '1rem',
-              borderRadius: '14px',
+              padding: '0.85rem 1rem',
+              borderRadius: '12px',
               background: 'var(--primary)',
               color: 'white',
               border: 'none',
               fontWeight: 700,
-              fontSize: '1rem',
+              fontSize: '0.95rem',
               cursor: isImportingGoogleDoc ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -115,22 +122,46 @@ export function GoogleDocModal({
               boxShadow: '0 4px 14px var(--primary-glow)',
             }}
           >
-            {isImportingGoogleDoc ? '⏳ Importing Doc...' : '📋 Paste Link & Import Now'}
+            {isImportingGoogleDoc ? '⏳ Importing Doc...' : '📋 Paste Link & Import'}
           </button>
+
+          {openGoogleDrivePicker && (
+            <button
+              type="button"
+              onClick={openGoogleDrivePicker}
+              disabled={isImportingGoogleDoc}
+              style={{
+                flex: '1 1 180px',
+                padding: '0.85rem 1rem',
+                borderRadius: '12px',
+                background: 'var(--surface)',
+                color: 'var(--foreground)',
+                border: '1px solid var(--border)',
+                fontWeight: 650,
+                fontSize: '0.9rem',
+                cursor: isImportingGoogleDoc ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+              }}
+            >
+              📁 Pick from Drive / Files
+            </button>
+          )}
 
           <a
             href="https://docs.google.com"
             target="_blank"
             rel="noopener noreferrer"
             style={{
-              flex: '1 1 140px',
-              padding: '1rem',
-              borderRadius: '14px',
+              padding: '0.85rem 1rem',
+              borderRadius: '12px',
               background: 'var(--surface)',
               color: 'var(--foreground)',
               border: '1px solid var(--border)',
-              fontWeight: 650,
-              fontSize: '0.95rem',
+              fontWeight: 600,
+              fontSize: '0.85rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -142,18 +173,18 @@ export function GoogleDocModal({
           </a>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', opacity: 0.5 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', opacity: 0.5, margin: '0.25rem 0' }}>
           <hr style={{ flex: 1, border: 'none', borderTop: '1px solid var(--border)' }} />
-          <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' }}>OR PASTE / EDIT LINK</span>
+          <span style={{ fontSize: '0.725rem', fontWeight: 700, textTransform: 'uppercase' }}>OR ENTER LINK MANUALLY</span>
           <hr style={{ flex: 1, border: 'none', borderTop: '1px solid var(--border)' }} />
         </div>
 
         {/* Option 2: Manual Link Input */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          <label style={{ fontSize: '0.85rem', fontWeight: 700, opacity: 0.85 }}>Google Doc Web Share Link:</label>
+          <label style={{ fontSize: '0.85rem', fontWeight: 700, opacity: 0.85 }}>Google Doc Share Link:</label>
           <input
             type="text"
-            placeholder="https://docs.google.com/document/d/..."
+            placeholder="https://docs.google.com/document/d/... (or drive.google.com)"
             value={googleDocUrl}
             onChange={(e) => setGoogleDocUrl(e.target.value)}
             style={{
@@ -162,30 +193,31 @@ export function GoogleDocModal({
               border: '1px solid var(--border)',
               background: 'var(--background)',
               color: 'var(--foreground)',
-              fontSize: '0.95rem',
+              fontSize: '0.925rem',
               outline: 'none',
             }}
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem' }}>
           <button
             onClick={async () => {
+              if (!googleDocUrl.trim()) return;
               await handleGoogleDocImport();
               onClose();
             }}
             disabled={isImportingGoogleDoc || !googleDocUrl.trim()}
             style={{
               flex: 2,
-              padding: '0.9rem',
+              padding: '0.85rem',
               borderRadius: '12px',
               background: 'var(--secondary)',
               border: 'none',
               color: 'white',
               fontWeight: 700,
-              fontSize: '1rem',
+              fontSize: '0.95rem',
               cursor: isImportingGoogleDoc || !googleDocUrl.trim() ? 'not-allowed' : 'pointer',
-              opacity: isImportingGoogleDoc || !googleDocUrl.trim() ? 0.7 : 1,
+              opacity: isImportingGoogleDoc || !googleDocUrl.trim() ? 0.6 : 1,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -198,13 +230,13 @@ export function GoogleDocModal({
             onClick={onClose}
             style={{
               flex: 1,
-              padding: '0.9rem',
+              padding: '0.85rem',
               borderRadius: '12px',
               background: 'var(--surface)',
               border: '1px solid var(--border)',
               color: 'var(--foreground)',
               fontWeight: 650,
-              fontSize: '1rem',
+              fontSize: '0.95rem',
               cursor: 'pointer',
             }}
           >

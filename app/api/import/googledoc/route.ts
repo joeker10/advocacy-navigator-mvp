@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+ 
+export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,18 +11,21 @@ export async function POST(req: NextRequest) {
 
     const trimmedUrl = url.trim();
 
-    // Match Google Doc ID from various link formats
+    // Match Google Doc ID from various link formats (including /u/0/d/ and /open?id=)
     let docId: string | null = null;
-    const docMatch = trimmedUrl.match(/\/document\/d\/([a-zA-Z0-9-_]+)/);
-    const driveMatch = trimmedUrl.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
+    const generalDocMatch = trimmedUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
     const idParamMatch = trimmedUrl.match(/[?&]id=([a-zA-Z0-9-_]+)/);
+    const legacyDocMatch = trimmedUrl.match(/\/document\/d\/([a-zA-Z0-9-_]+)/);
+    const legacyDriveMatch = trimmedUrl.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
 
-    if (docMatch && docMatch[1]) {
-      docId = docMatch[1];
-    } else if (driveMatch && driveMatch[1]) {
-      docId = driveMatch[1];
+    if (generalDocMatch && generalDocMatch[1]) {
+      docId = generalDocMatch[1];
     } else if (idParamMatch && idParamMatch[1]) {
       docId = idParamMatch[1];
+    } else if (legacyDocMatch && legacyDocMatch[1]) {
+      docId = legacyDocMatch[1];
+    } else if (legacyDriveMatch && legacyDriveMatch[1]) {
+      docId = legacyDriveMatch[1];
     } else if (/^[a-zA-Z0-9-_]{20,}$/.test(trimmedUrl)) {
       docId = trimmedUrl;
     }

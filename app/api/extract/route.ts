@@ -6,6 +6,8 @@ import { getAuthenticatedUser } from '@/lib/auth';
 import { retryWithBackoff } from '@/lib/gemini';
 import { extractTextFromZip, parseDocxText, parseOdtText } from '@/lib/documentParser';
 
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     const payload = getAuthenticatedUser(req);

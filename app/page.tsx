@@ -861,49 +861,63 @@ export default function Home() {
     }
   }, [isAuthenticated]);
 
+  const readClipboardText = async (): Promise<string | null> => {
+    try {
+      const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.();
+      if (isNative) {
+        const { Clipboard } = await import('@capacitor/clipboard');
+        const res = await Clipboard.read();
+        if (res && res.value && res.value.trim()) {
+          return res.value.trim();
+        }
+      }
+    } catch (e) {
+      console.warn("Capacitor clipboard read failed:", e);
+    }
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          return text.trim();
+        }
+      }
+    } catch (e) {
+      console.warn("Navigator clipboard read failed:", e);
+    }
+
+    return null;
+  };
+
   const handleGoogleDocImport = async (targetUrl?: string) => {
     const importUrl = (targetUrl || googleDocUrl).trim();
-    if (!importUrl) return;
+    if (!importUrl) {
+      alert("Please enter or paste a valid Google Doc share link.");
+      return;
+    }
     setIsImportingGoogleDoc(true);
     try {
-      const docMatch = importUrl.match(/\/document\/d\/([a-zA-Z0-9-_]+)/);
-      const driveMatch = importUrl.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
+      const generalDocMatch = importUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
       const idParamMatch = importUrl.match(/[?&]id=([a-zA-Z0-9-_]+)/);
-      const docId = docMatch ? docMatch[1] : (driveMatch ? driveMatch[1] : (idParamMatch ? idParamMatch[1] : null));
+      const legacyDocMatch = importUrl.match(/\/document\/d\/([a-zA-Z0-9-_]+)/);
+      const legacyDriveMatch = importUrl.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
+      const docId = generalDocMatch ? generalDocMatch[1] : (idParamMatch ? idParamMatch[1] : (legacyDocMatch ? legacyDocMatch[1] : (legacyDriveMatch ? legacyDriveMatch[1] : null)));
 
       let importedText = "";
       let docTitle = docId ? `Google_Doc_${docId.substring(0, 6)}` : "Google_Doc";
 
-      // 1. Try direct client-side plain text export if valid doc ID
-      if (docId) {
-        try {
-          const directRes = await fetch(`https://docs.google.com/document/d/${docId}/export?format=txt`);
-          if (directRes.ok) {
-            const txt = await directRes.text();
-            if (txt && txt.trim().length > 0) {
-              importedText = txt;
-            }
-          }
-        } catch (e) {
-          console.warn("Direct Google Doc export fetch failed, falling back to API:", e);
-        }
-      }
-
-      // 2. Fall back to API route if direct fetch did not yield text
-      if (!importedText) {
-        const res = await fetch(`${API_URL}/api/import/googledoc`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: importUrl })
-        });
-        const data = await res.json();
-        if (data.success && data.text) {
-          importedText = data.text;
-          if (data.title) docTitle = data.title;
-        } else {
-          alert(data.error || "Failed to import Google Doc. Please ensure link sharing is set to 'Anyone with the link can view'.");
-          return;
-        }
+      const res = await fetch(`${API_URL}/api/import/googledoc`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: importUrl })
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success && data?.text) {
+        importedText = data.text;
+        if (data.title) docTitle = data.title;
+      } else {
+        alert(data?.error || "Failed to import Google Doc. Please ensure link sharing in Google Docs is set to 'Anyone with the link can view' (or download as PDF/DOCX and upload directly).");
+        return;
       }
 
       if (importedText) {
@@ -913,7 +927,7 @@ export default function Home() {
         alert(`Successfully staged Google Doc: "${docTitle}"`);
       }
     } catch (err: any) {
-      console.error(err);
+      console.error("Google Doc import error:", err);
       alert("Error importing Google Doc: " + (err.message || "Network error. Make sure link sharing is enabled."));
     } finally {
       setIsImportingGoogleDoc(false);
@@ -922,12 +936,10 @@ export default function Home() {
 
   const handlePasteClipboard = async () => {
     try {
-      if (navigator.clipboard && navigator.clipboard.readText) {
-        const text = await navigator.clipboard.readText();
-        if (text) {
-          setGoogleDocUrl(text.trim());
-          triggerHaptic();
-        }
+      const text = await readClipboardText();
+      if (text) {
+        setGoogleDocUrl(text);
+        triggerHaptic();
       }
     } catch (e) {
       console.warn("Clipboard read failed:", e);
@@ -935,37 +947,37 @@ export default function Home() {
   };
 
   const handlePasteAndImport = async () => {
+    // 1. If user already typed or pasted a URL into the input field, use that directly
+    if (googleDocUrl && googleDocUrl.trim()) {
+      setIsGoogleDocModalOpen(false);
+      await handleGoogleDocImport(googleDocUrl.trim());
+      return;
+    }
+
+    // 2. Otherwise attempt to read from system or web clipboard
     try {
-      if (navigator.clipboard && navigator.clipboard.readText) {
-        const text = await navigator.clipboard.readText();
-        if (text && text.trim()) {
-          setGoogleDocUrl(text.trim());
-          triggerHaptic();
-          setIsGoogleDocModalOpen(false);
-          await handleGoogleDocImport(text.trim());
-          return;
-        }
+      const clipText = await readClipboardText();
+      if (clipText && clipText.trim()) {
+        setGoogleDocUrl(clipText.trim());
+        triggerHaptic();
+        setIsGoogleDocModalOpen(false);
+        await handleGoogleDocImport(clipText.trim());
+        return;
       }
     } catch (e) {
       console.warn("Clipboard auto-read failed:", e);
     }
 
-    if (googleDocUrl.trim()) {
-      setIsGoogleDocModalOpen(false);
-      await handleGoogleDocImport();
-    } else {
-      alert("Please copy a Google Doc share link from Google Docs, or type/paste it here.");
-    }
+    // 3. Clear, helpful guidance if clipboard is empty or denied
+    alert("No link detected on your clipboard. Please copy your Google Doc's share link from Google Docs, or paste it directly into the input box below. (Tip: You can also tap 'Pick from Drive / Files'!)");
   };
 
   const openGoogleDocModal = async () => {
     setIsGoogleDocModalOpen(true);
     try {
-      if (navigator.clipboard && navigator.clipboard.readText) {
-        const clipText = await navigator.clipboard.readText();
-        if (clipText && (clipText.includes("docs.google.com") || clipText.includes("drive.google.com"))) {
-          setGoogleDocUrl(clipText.trim());
-        }
+      const clipText = await readClipboardText();
+      if (clipText && (clipText.includes("docs.google.com") || clipText.includes("drive.google.com") || clipText.includes("/d/"))) {
+        setGoogleDocUrl(clipText.trim());
       }
     } catch (e) {
       // Safe fallback
@@ -1534,8 +1546,8 @@ export default function Home() {
       img.onload = () => {
         URL.revokeObjectURL(url);
         
-        // Target max dimension for OCR while staying under 2-3MB
-        const MAX_DIMENSION = 2048;
+        // Target max dimension for OCR while staying under 500KB per image (prevents batches exceeding 4.5MB limit)
+        const MAX_DIMENSION = 1600;
         let width = img.width;
         let height = img.height;
         
@@ -1555,7 +1567,7 @@ export default function Home() {
         
         ctx.drawImage(img, 0, 0, width, height);
         
-        // Compress to JPEG with 0.8 quality
+        // Compress to JPEG with 0.72 quality for optimal size & OCR fidelity
         canvas.toBlob((blob) => {
           if (!blob) return resolve(file);
           const compressedFile = new File([blob], file.name, {
@@ -1563,7 +1575,7 @@ export default function Home() {
             lastModified: Date.now(),
           });
           resolve(compressedFile);
-        }, 'image/jpeg', 0.8);
+        }, 'image/jpeg', 0.72);
       };
       
       img.onerror = () => {
@@ -1681,9 +1693,26 @@ export default function Home() {
   const processStagedBatch = async () => {
     if (stagedFiles.length === 0) return;
     
+    // Check authentication
+    if (!token || !isAuthenticated) {
+      alert("Please sign in or create an account to process and analyze documents.");
+      setIsAuthenticated(false);
+      return;
+    }
+
     // Check subscription status
     if (user && user.subscriptionStatus !== 'SUBSCRIBED') {
-      alert("Document uploads are locked for free users. Please upgrade to a Subscribed account in Settings.");
+      alert("Document uploads and batch extraction require an active subscription. Please upgrade in Settings.");
+      setShowSettings(true);
+      return;
+    }
+
+    // Check total staged files size against serverless payload limit
+    const totalBytes = stagedFiles.reduce((acc, f) => acc + (f.size || 0), 0);
+    const MAX_BATCH_BYTES = 4.5 * 1024 * 1024; // 4.5MB Vercel serverless request body ceiling
+    if (totalBytes > MAX_BATCH_BYTES) {
+      const mbSize = (totalBytes / (1024 * 1024)).toFixed(1);
+      alert(`The staged batch size (${mbSize} MB) exceeds the 4.5 MB server upload limit. Please remove some files or process documents in smaller batches (1–3 pages at a time).`);
       return;
     }
 
@@ -1706,12 +1735,39 @@ export default function Home() {
         body: formData,
       });
       
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        // Non-JSON response (e.g. proxy HTML / text 413 or 504)
+      }
+
       if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
+        if (res.status === 401) {
+          alert("Your session has expired or authentication failed. Please sign in again.");
+          localStorage.removeItem("spednav_auth_token");
+          setToken(null);
+          setIsAuthenticated(false);
+          return;
+        }
+        if (res.status === 403) {
+          alert(data?.error || "Document extraction requires an active subscription. Please upgrade in Settings.");
+          setShowSettings(true);
+          return;
+        }
+        if (res.status === 413) {
+          alert("The uploaded batch exceeds the server's 4.5MB payload limit. Please upload fewer documents at once.");
+          return;
+        }
+        if (res.status === 504) {
+          alert("Document processing timed out on the server. Please try with fewer pages or a smaller batch.");
+          return;
+        }
+        alert(data?.error || `Batch analysis failed (Server returned status ${res.status}). Please try again.`);
+        return;
       }
       
-      const data = await res.json();
-      if (data.success) {
+      if (data && data.success) {
         await cacheVerifiedDocument({
           id: data.documentId,
           fileName: data.fileName,
@@ -1734,14 +1790,14 @@ export default function Home() {
         });
         incrementWebInquiry();
       } else {
-        alert(`Batch Analysis failed: ` + (data.error || 'Unknown error'));
+        alert(`Batch Analysis failed: ` + (data?.error || 'Unknown error'));
       }
-    } catch (err) {
-      console.error(err);
-      alert(`Upload failed due to network error.`);
+    } catch (err: any) {
+      console.error("Batch extraction fetch error:", err);
+      alert(`Upload failed: Could not connect to the server (${err?.message || 'Network error'}). Please check your internet connection and try again.`);
+    } finally {
+      setIsUploading(false);
     }
-    
-    setIsUploading(false);
   };
 
   const moveStagedFile = (index: number, direction: -1 | 1) => {
@@ -3393,6 +3449,7 @@ export default function Home() {
         isImportingGoogleDoc={isImportingGoogleDoc}
         handlePasteAndImport={handlePasteAndImport}
         handleGoogleDocImport={handleGoogleDocImport}
+        openGoogleDrivePicker={openGoogleDrivePicker}
       />
       </main>
     </ErrorBoundary>
