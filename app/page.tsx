@@ -323,6 +323,8 @@ export default function Home() {
 
   // Media Capture & Staging State
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const [mergeMultiPagePhotos, setMergeMultiPagePhotos] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; currentFileName: string } | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
@@ -1707,96 +1709,213 @@ export default function Home() {
       return;
     }
 
-    // Check total staged files size against serverless payload limit
-    const totalBytes = stagedFiles.reduce((acc, f) => acc + (f.size || 0), 0);
-    const MAX_BATCH_BYTES = 4.5 * 1024 * 1024; // 4.5MB Vercel serverless request body ceiling
-    if (totalBytes > MAX_BATCH_BYTES) {
-      const mbSize = (totalBytes / (1024 * 1024)).toFixed(1);
-      alert(`The staged batch size (${mbSize} MB) exceeds the 4.5 MB server upload limit. Please remove some files or process documents in smaller batches (1–3 pages at a time).`);
+    // Mode A: Merge multi-page photos into a single extraction
+    if (mergeMultiPagePhotos) {
+      const totalBytes = stagedFiles.reduce((acc, f) => acc + (f.size || 0), 0);
+      const MAX_BATCH_BYTES = 4.5 * 1024 * 1024; // 4.5MB Vercel serverless request body ceiling
+      if (totalBytes > MAX_BATCH_BYTES) {
+        const mbSize = (totalBytes / (1024 * 1024)).toFixed(1);
+        alert(`The staged batch size (${mbSize} MB) exceeds the 4.5 MB server upload limit. Please switch to "One-by-One" processing or remove some pages.`);
+        return;
+      }
+
+      setIsUploading(true);
+      setUploadProgress({ current: 1, total: 1, currentFileName: `Merged ${stagedFiles.length} Pages` });
+      
+      try {
+        const formData = new FormData();
+        stagedFiles.forEach(file => {
+          formData.append('files', file);
+        });
+
+        const headers: Record<string, string> = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const res = await fetch(`${API_URL}/api/extract`, {
+          method: 'POST',
+          headers,
+          body: formData,
+        });
+        
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          // Non-JSON response
+        }
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            alert("Your session has expired or authentication failed. Please sign in again.");
+            localStorage.removeItem("spednav_auth_token");
+            setToken(null);
+            setIsAuthenticated(false);
+            return;
+          }
+          if (res.status === 403) {
+            alert(data?.error || "Document extraction requires an active subscription. Please upgrade in Settings.");
+            setShowSettings(true);
+            return;
+          }
+          if (res.status === 413) {
+            alert("The uploaded batch exceeds the server's 4.5MB payload limit. Please switch to One-by-One mode or upload fewer pages.");
+            return;
+          }
+          if (res.status === 504) {
+            alert("Document processing timed out on the server. Please switch to One-by-One processing or compress large images.");
+            return;
+          }
+          alert(data?.error || `Merged analysis failed (Server returned status ${res.status}). Please try again.`);
+          return;
+        }
+        
+        if (data && data.success) {
+          await cacheVerifiedDocument({
+            id: data.documentId,
+            fileName: data.fileName,
+            extractedData: data.extractedData
+          });
+          if (data.vector && data.vector.length > 0) {
+            await saveDocumentEmbedding(data.documentId, data.vector, data.text_chunk, 1);
+          }
+          const newExtDoc = { fileName: data.fileName, files: [], ...data.extractedData };
+          setExtractedDocuments(prev => {
+            const updated = [...prev, newExtDoc];
+            import("@/lib/indexeddb").then(({ saveExtractedDocOffline }) => {
+              saveExtractedDocOffline(newExtDoc).catch(err => console.error("Failed to save extracted doc offline:", err));
+            });
+            return updated;
+          });
+          setStagedFiles([]);
+          import("@/lib/indexeddb").then(({ clearStagedFilesOffline }) => {
+            clearStagedFilesOffline().catch(err => console.error("Failed to clear staged files offline:", err));
+          });
+          incrementWebInquiry();
+        } else {
+          alert(`Analysis failed: ` + (data?.error || 'Unknown error'));
+        }
+      } catch (err: any) {
+        console.error("Merged extraction fetch error:", err);
+        alert(`Upload failed: Could not connect to the server (${err?.message || 'Network error'}). Please check your internet connection and try again.`);
+      } finally {
+        setIsUploading(false);
+        setUploadProgress(null);
+      }
       return;
     }
 
+    // Mode B: Sequential One-by-One processing (Recommended default)
+    // Uploads and processes each document independently so parents can stage all documents at once
     setIsUploading(true);
-    
-    try {
-      const formData = new FormData();
-      stagedFiles.forEach(file => {
-        formData.append('files', file);
+    const filesToProcess = [...stagedFiles];
+    let successCount = 0;
+    const failures: { name: string; error: string }[] = [];
+
+    for (let i = 0; i < filesToProcess.length; i++) {
+      const file = filesToProcess[i];
+      setUploadProgress({
+        current: i + 1,
+        total: filesToProcess.length,
+        currentFileName: file.name
       });
 
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      const MAX_SINGLE_FILE_BYTES = 25 * 1024 * 1024; // 25 MB
+      if (file.size > MAX_SINGLE_FILE_BYTES) {
+        failures.push({ name: file.name, error: "File exceeds 25MB maximum limit." });
+        continue;
       }
 
-      const res = await fetch(`${API_URL}/api/extract`, {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
-      
-      let data: any = null;
       try {
-        data = await res.json();
-      } catch {
-        // Non-JSON response (e.g. proxy HTML / text 413 or 504)
-      }
+        const formData = new FormData();
+        formData.append('files', file);
 
-      if (!res.ok) {
-        if (res.status === 401) {
-          alert("Your session has expired or authentication failed. Please sign in again.");
-          localStorage.removeItem("spednav_auth_token");
-          setToken(null);
-          setIsAuthenticated(false);
-          return;
+        const headers: Record<string, string> = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
         }
-        if (res.status === 403) {
-          alert(data?.error || "Document extraction requires an active subscription. Please upgrade in Settings.");
-          setShowSettings(true);
-          return;
-        }
-        if (res.status === 413) {
-          alert("The uploaded batch exceeds the server's 4.5MB payload limit. Please upload fewer documents at once.");
-          return;
-        }
-        if (res.status === 504) {
-          alert("Document processing timed out on the server. Please try with fewer pages or a smaller batch.");
-          return;
-        }
-        alert(data?.error || `Batch analysis failed (Server returned status ${res.status}). Please try again.`);
-        return;
-      }
-      
-      if (data && data.success) {
-        await cacheVerifiedDocument({
-          id: data.documentId,
-          fileName: data.fileName,
-          extractedData: data.extractedData
+
+        const res = await fetch(`${API_URL}/api/extract`, {
+          method: 'POST',
+          headers,
+          body: formData,
         });
-        if (data.vector && data.vector.length > 0) {
-          await saveDocumentEmbedding(data.documentId, data.vector, data.text_chunk, 1);
+
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          // Non-JSON response
         }
-        const newExtDoc = { fileName: data.fileName, files: [], ...data.extractedData };
-        setExtractedDocuments(prev => {
-          const updated = [...prev, newExtDoc];
-          import("@/lib/indexeddb").then(({ saveExtractedDocOffline }) => {
-            saveExtractedDocOffline(newExtDoc).catch(err => console.error("Failed to save extracted doc offline:", err));
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            alert("Your session has expired or authentication failed. Please sign in again.");
+            localStorage.removeItem("spednav_auth_token");
+            setToken(null);
+            setIsAuthenticated(false);
+            break;
+          }
+          if (res.status === 403) {
+            alert(data?.error || "Document extraction requires an active subscription. Please upgrade in Settings.");
+            setShowSettings(true);
+            break;
+          }
+          if (res.status === 413) {
+            failures.push({ name: file.name, error: "File exceeds the 4.5MB request payload limit. Please compress or optimize this document." });
+            continue;
+          }
+          if (res.status === 504) {
+            failures.push({ name: file.name, error: "Document processing timed out on the server. Please try with fewer pages or a compressed file." });
+            continue;
+          }
+          failures.push({ name: file.name, error: data?.error || `Server returned status ${res.status}` });
+          continue;
+        }
+
+        if (data && data.success) {
+          const docTitle = (data.fileName && data.fileName !== 'Batch_1_Documents') ? data.fileName : file.name;
+          await cacheVerifiedDocument({
+            id: data.documentId,
+            fileName: docTitle,
+            extractedData: data.extractedData
           });
-          return updated;
-        });
-        setStagedFiles([]);
-        import("@/lib/indexeddb").then(({ clearStagedFilesOffline }) => {
-          clearStagedFilesOffline().catch(err => console.error("Failed to clear staged files offline:", err));
-        });
-        incrementWebInquiry();
-      } else {
-        alert(`Batch Analysis failed: ` + (data?.error || 'Unknown error'));
+          if (data.vector && data.vector.length > 0) {
+            await saveDocumentEmbedding(data.documentId, data.vector, data.text_chunk, 1);
+          }
+          const newExtDoc = { fileName: docTitle, files: [], ...data.extractedData };
+          setExtractedDocuments(prev => {
+            const updated = [...prev, newExtDoc];
+            import("@/lib/indexeddb").then(({ saveExtractedDocOffline }) => {
+              saveExtractedDocOffline(newExtDoc).catch(err => console.error("Failed to save extracted doc offline:", err));
+            });
+            return updated;
+          });
+
+          // Remove the successfully processed file from staging queue and offline store
+          setStagedFiles(prev => prev.filter(f => f !== file));
+          import("@/lib/indexeddb").then(({ deleteStagedFileOffline }) => {
+            deleteStagedFileOffline(file.name).catch(err => console.error("Failed to remove staged file offline:", err));
+          });
+
+          incrementWebInquiry();
+          successCount++;
+        } else {
+          failures.push({ name: file.name, error: data?.error || 'Unknown error' });
+        }
+      } catch (err: any) {
+        console.error(`Error processing file ${file.name}:`, err);
+        failures.push({ name: file.name, error: err?.message || 'Network error' });
       }
-    } catch (err: any) {
-      console.error("Batch extraction fetch error:", err);
-      alert(`Upload failed: Could not connect to the server (${err?.message || 'Network error'}). Please check your internet connection and try again.`);
-    } finally {
-      setIsUploading(false);
+    }
+
+    setIsUploading(false);
+    setUploadProgress(null);
+
+    if (failures.length > 0) {
+      const errorList = failures.map(f => `• ${f.name}: ${f.error}`).join('\n');
+      alert(`Completed with ${successCount} successful and ${failures.length} failed document(s):\n\n${errorList}\n\nRemaining items are kept in the staging queue so you can retry or remove them.`);
     }
   };
 
@@ -2790,8 +2909,15 @@ export default function Home() {
                   {isUploading ? "⚙️" : "✅"}
                 </div>
                 <h3 style={{ fontSize: "1.5rem", marginBottom: "0.5rem", fontWeight: 700 }}>
-                  {isUploading ? "Securely Tunneling to Gemini..." : "Multi-Document Context Active"}
+                  {isUploading 
+                    ? (uploadProgress ? `Processing Document ${uploadProgress.current} of ${uploadProgress.total}...` : "Securely Tunneling to Gemini...")
+                    : "Multi-Document Context Active"}
                 </h3>
+                {isUploading && uploadProgress && (
+                  <p style={{ color: "var(--primary)", fontWeight: 600, fontSize: "0.95rem", marginTop: "0.25rem" }}>
+                    Analyzing: {uploadProgress.currentFileName}
+                  </p>
+                )}
                 {extractedDocuments.length > 0 && (
                   <p style={{ color: "var(--success)", fontWeight: 600, fontSize: "1rem", marginTop: "1rem" }}>
                     {extractedDocuments.length} Document(s) Secured Offline
@@ -2907,10 +3033,65 @@ export default function Home() {
             {/* Staging Queue */}
             {stagedFiles.length > 0 && (
               <div className="glass-panel animate-slide-up" style={{ padding: "1.5rem", marginTop: "1rem" }}>
-                <h3 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <span style={{ background: "var(--primary-glow)", color: "var(--primary)", padding: "0.2rem 0.6rem", borderRadius: "12px", fontSize: "0.9rem" }}>{stagedFiles.length}</span>
-                  Documents Staged for Batch Processing
-                </h3>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                  <h3 style={{ fontSize: "1.2rem", fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ background: "var(--primary-glow)", color: "var(--primary)", padding: "0.2rem 0.6rem", borderRadius: "12px", fontSize: "0.9rem" }}>{stagedFiles.length}</span>
+                    Documents Staged for Processing
+                  </h3>
+
+                  {/* Processing Mode Toggle (One-by-One vs Merge) */}
+                  {stagedFiles.length > 1 && (
+                    <div style={{ display: "inline-flex", background: "var(--background)", padding: "3px", borderRadius: "10px", border: "1px solid var(--border)", gap: "3px" }}>
+                      <button
+                        type="button"
+                        onClick={() => setMergeMultiPagePhotos(false)}
+                        disabled={isUploading}
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: "8px",
+                          fontSize: "0.8rem",
+                          fontWeight: 600,
+                          border: "none",
+                          cursor: isUploading ? "not-allowed" : "pointer",
+                          background: !mergeMultiPagePhotos ? "var(--primary)" : "transparent",
+                          color: !mergeMultiPagePhotos ? "var(--background)" : "var(--foreground)",
+                          boxShadow: !mergeMultiPagePhotos ? "0 2px 8px var(--primary-glow)" : "none",
+                          transition: "all 0.2s"
+                        }}
+                      >
+                        ⚡ One-by-One (Recommended)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMergeMultiPagePhotos(true)}
+                        disabled={isUploading}
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: "8px",
+                          fontSize: "0.8rem",
+                          fontWeight: 600,
+                          border: "none",
+                          cursor: isUploading ? "not-allowed" : "pointer",
+                          background: mergeMultiPagePhotos ? "var(--primary)" : "transparent",
+                          color: mergeMultiPagePhotos ? "var(--background)" : "var(--foreground)",
+                          boxShadow: mergeMultiPagePhotos ? "0 2px 8px var(--primary-glow)" : "none",
+                          transition: "all 0.2s"
+                        }}
+                      >
+                        📑 Merge Multi-Page Photos
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {stagedFiles.length > 1 && (
+                  <p style={{ fontSize: "0.82rem", opacity: 0.75, marginTop: 0, marginBottom: "1.25rem", color: "var(--foreground)" }}>
+                    {!mergeMultiPagePhotos
+                      ? "⚡ Processes each document individually to prevent timeouts, preserve original file titles, and keep separate records."
+                      : "📑 Combines all staged pages into a single extraction (ideal for photos of a multi-page paper document)."}
+                  </p>
+                )}
+
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1.5rem" }}>
                   {stagedFiles.map((file, idx) => (
                     <div key={idx} style={{ display: "flex", flexDirection: "column", padding: "1rem", background: "var(--background)", border: "1px solid var(--glass-border)", borderRadius: "12px", boxShadow: "var(--shadow-sm)" }}>
@@ -2928,12 +3109,37 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
+
+                {uploadProgress && (
+                  <div style={{ padding: "1rem", background: "var(--surface)", border: "1px solid var(--glass-border)", borderRadius: "12px", marginBottom: "1.25rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", fontSize: "0.85rem", fontWeight: 600 }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <span style={{ display: "inline-block", width: "12px", height: "12px", border: "2px solid var(--primary)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }}></span>
+                        Processing document {uploadProgress.current} of {uploadProgress.total}
+                      </span>
+                      <span>{Math.round(((uploadProgress.current - 1) / uploadProgress.total) * 100)}%</span>
+                    </div>
+                    <div style={{ width: "100%", height: "6px", background: "var(--background)", borderRadius: "999px", overflow: "hidden" }}>
+                      <div style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%`, height: "100%", background: "var(--primary)", transition: "width 0.4s ease" }}></div>
+                    </div>
+                    <div style={{ fontSize: "0.8rem", color: "var(--foreground)", opacity: 0.8, marginTop: "0.5rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      Analyzing: <strong>{uploadProgress.currentFileName}</strong>
+                    </div>
+                  </div>
+                )}
+
                 <button 
                   onClick={processStagedBatch}
                   disabled={isUploading}
                   style={{ width: "100%", padding: "1rem", borderRadius: "12px", background: "var(--primary)", border: "none", color: "var(--background)", fontSize: "1.1rem", fontWeight: 700, cursor: isUploading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", boxShadow: "0 4px 12px var(--primary-glow)", transition: "all 0.2s" }}
                 >
-                  {isUploading ? "⚙️ Processing Batch..." : "✨ Extract Context from Batch"}
+                  {isUploading ? (
+                    uploadProgress ? `⚙️ Processing (${uploadProgress.current}/${uploadProgress.total})...` : "⚙️ Processing..."
+                  ) : (
+                    mergeMultiPagePhotos
+                      ? `📑 Merge & Extract ${stagedFiles.length} Pages as 1 Document`
+                      : (stagedFiles.length > 1 ? `✨ Process All ${stagedFiles.length} Documents (One-by-One)` : "✨ Extract Context from Document")
+                  )}
                 </button>
               </div>
             )}
